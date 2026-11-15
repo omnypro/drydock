@@ -1,12 +1,68 @@
 import { API, SymbolFlags, TypeFlags, TypeFormatFlags } from "typescript/async"
 import type { Project as TsProject, Symbol as TsSymbol, Type as TsType } from "typescript/async"
 import { SyntaxKind } from "typescript/ast"
-import type { Node } from "typescript/ast"
-import { isFunctionDeclaration, isIdentifier, isLiteralTypeNode, isObjectBindingPattern, isPropertySignatureDeclaration, isStringLiteral, isTypeAliasDeclaration, isTypeReferenceNode } from "typescript/ast/is"
+import type { ArrowFunction, Expression, FunctionDeclaration, FunctionExpression, Identifier, Node, SourceFile } from "typescript/ast"
+import {
+  isArrowFunction,
+  isAsExpression,
+  isCallExpression,
+  isFunctionDeclaration,
+  isFunctionExpression,
+  isIdentifier,
+  isLiteralTypeNode,
+  isNoSubstitutionTemplateLiteral,
+  isNonNullExpression,
+  isNumericLiteral,
+  isObjectBindingPattern,
+  isParenthesizedExpression,
+  isPrefixUnaryExpression,
+  isPropertyAccessExpression,
+  isPropertySignatureDeclaration,
+  isSatisfiesExpression,
+  isStringLiteral,
+  isTypeAliasDeclaration,
+  isTypeReferenceNode,
+  isVariableStatement,
+} from "typescript/ast/is"
 import { createRequire } from "node:module"
 import path from "node:path"
-import type { Compiler, ComponentFacts, Literal, Project, PropFacts, TypeFacts } from "./facts"
-import { isDefaultLibrary } from "./library"
+import type { Compiler, ComponentFacts, DefaultValue, Literal, Project, PropFacts, TypeFacts } from "./facts"
+import { isDefaultLibrary, isProjectFile } from "./library"
+import { isWrapper } from "./wrappers"
+
+type Found = { identifier: Identifier; fn: ArrowFunction | FunctionExpression | FunctionDeclaration | undefined }
+
+/** Finds the top-level declaration called `name`, and the function that defines it when the source writes one. */
+function locate(sf: SourceFile, name: string): Found | undefined {
+  for (const statement of sf.statements) {
+    if (isFunctionDeclaration(statement) && statement.name?.text === name) return { identifier: statement.name, fn: statement }
+    if (!isVariableStatement(statement)) continue
+    for (const declaration of statement.declarationList.declarations) {
+      if (isIdentifier(declaration.name) && declaration.name.text === name) return { identifier: declaration.name, fn: declaration.initializer && functionOf(declaration.initializer) }
+    }
+  }
+  return undefined
+}
+
+/** The arrow or function expression inside `memo(...)`, `forwardRef(...)`, parentheses and `as`. */
+function functionOf(expression: Expression): ArrowFunction | FunctionExpression | undefined {
+  let node = expression
+  while (isParenthesizedExpression(node) || isAsExpression(node) || isSatisfiesExpression(node) || isNonNullExpression(node)) node = node.expression
+  if (isArrowFunction(node) || isFunctionExpression(node)) return node
+  if (isCallExpression(node) && isWrapper(isPropertyAccessExpression(node.expression) ? node.expression.name.text : isIdentifier(node.expression) ? node.expression.text : "")) {
+    return node.arguments[0] && functionOf(node.arguments[0])
+  }
+  return undefined
+}
+
+function literalDefault(node: Expression): DefaultValue | undefined {
+  if (isStringLiteral(node) || isNoSubstitutionTemplateLiteral(node)) return node.text
+  if (node.kind === SyntaxKind.TrueKeyword) return true
+  if (node.kind === SyntaxKind.FalseKeyword) return false
+  if (isNumericLiteral(node)) return Number(node.text)
+  if (isPrefixUnaryExpression(node) && node.operator === SyntaxKind.MinusToken && isNumericLiteral(node.operand)) return -Number(node.operand.text)
+  return undefined
+}
 
 /**
  * The reader on the TypeScript 7.1 programmatic API, through `typescript/async`. The sync entry point does not start under Bun
@@ -39,10 +95,13 @@ class AsyncProject implements Project {
     const { checker, program } = this.project
     const target = path.resolve(file)
     const sf = await program.getSourceFile(target)
-    const fn = sf?.statements.find((s) => isFunctionDeclaration(s) && s.name?.text === name)
-    if (!sf || !fn || !isFunctionDeclaration(fn)) return undefined
-    const param = fn.parameters[0]
-    if (!param) throw new Error(`${name} in ${file} takes no props parameter`)
+    const found = sf && locate(sf, name)
+    if (!sf || !found) return undefined
+    const { identifier, fn } = found
+    const signature = (await (await checker.getTypeAtLocation(identifier)).getCallSignatures())[0]
+    if (!signature) throw new Error(`${name} in ${file} is not callable, so it is not a component the reader can read`)
+    const first = (await signature.getParameters())[0]
+    const param = fn?.parameters[0]
 
     const types = new WeakMap<TypeFacts, TsType>()
     const wrap = (type: TsType): TypeFacts => {
@@ -54,7 +113,7 @@ class AsyncProject implements Project {
           if (type.flags & TypeFlags.BooleanLiteral) return (await checker.typeToString(type)) === "true"
           return undefined
         },
-        text: async () => (await checker.typeToString(type, fn, TypeFormatFlags.NoTruncation)).replace(/ \| undefined$/, ""),
+        text: async () => (await checker.typeToString(type, identifier, TypeFormatFlags.NoTruncation)).replace(/ \| undefined$/, ""),
       }
       types.set(facts, type)
       return facts
@@ -103,19 +162,20 @@ class AsyncProject implements Project {
       return out
     }
 
-    const symbolOfFn = fn.name ? await checker.getSymbolAtLocation(fn.name) : undefined
-    const defaults: Record<string, string> = {}
-    if (param.name && isObjectBindingPattern(param.name)) {
+    const symbolOfFn = await checker.getSymbolAtLocation(identifier)
+    const defaults: Record<string, DefaultValue> = {}
+    if (param?.name && isObjectBindingPattern(param.name)) {
       for (const element of param.name.elements) {
-        const binding = element.name
-        if (element.initializer && isStringLiteral(element.initializer) && binding && isIdentifier(binding)) defaults[binding.text] = element.initializer.text
+        const key = element.propertyName ?? element.name
+        const value = element.initializer && literalDefault(element.initializer)
+        if (value !== undefined && key && (isIdentifier(key) || isStringLiteral(key))) defaults[key.text] = value
       }
     }
 
     return {
       doc: symbolOfFn ? await symbolOfFn.getDocumentationComment(checker) : "",
       defaults,
-      props: wrap(await checker.getTypeAtLocation(param)),
+      props: first && wrap(await checker.getTypeOfSymbolAtLocation(first, identifier)),
       ownProps: async (shape) => {
         const type = types.get(shape)!
         const out: PropFacts[] = []
@@ -128,9 +188,16 @@ class AsyncProject implements Project {
             optional: Boolean(symbol.flags & SymbolFlags.Optional),
             position: Math.min(...positions),
             doc: () => symbol.getDocumentationComment(checker),
-            type: async () => wrap(await checker.getTypeOfSymbolAtLocation(symbol, fn)),
+            type: async () => wrap(await checker.getTypeOfSymbolAtLocation(symbol, identifier)),
             declaredOrder: () => declaredOrder(symbol),
           })
+        }
+        return out
+      },
+      projectProps: async (shape) => {
+        const out: string[] = []
+        for (const symbol of await checker.getPropertiesOfType(types.get(shape)!)) {
+          if (symbol.declarations.every((h) => h.path !== sf.path) && symbol.declarations.some((h) => isProjectFile(h.path))) out.push(symbol.name)
         }
         return out
       },

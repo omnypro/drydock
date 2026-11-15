@@ -1,4 +1,4 @@
-import type { Literal } from "./facts"
+import type { DefaultValue, Literal } from "./facts"
 
 export type PropShape = {
   name: string
@@ -18,7 +18,9 @@ export type ComponentShape = {
   compiler: string
   doc: string
   props: PropShape[]
+  /** Props that another file of the project declares. They are not in `props`. A component typed from a shared `RowProps` lists its props here. */
+  fromOtherFiles: string[]
   /** One entry per member of the props type: the literal props of that member. */
   shapes: Record<string, Literal[]>[]
-  defaults: Record<string, string>
+  defaults: Record<string, DefaultValue>
 }

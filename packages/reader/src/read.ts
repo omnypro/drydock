@@ -27,10 +27,13 @@ async function literalsOf(prop: PropFacts): Promise<Literal[] | null> {
 export async function readComponent(project: Project, file: string, name: string, compiler: string): Promise<ComponentShape | undefined> {
   const facts: ComponentFacts | undefined = await project.component(file, name)
   if (!facts) return undefined
+  if (!facts.props) return { name, compiler, doc: facts.doc, props: [], fromOtherFiles: [], shapes: [{}], defaults: facts.defaults }
 
   type Seen = { prop: PropFacts; values: Literal[] | null }
   const members: { seen: Seen[]; position: number }[] = []
+  const elsewhere = new Set<string>()
   for (const member of await facts.props.parts()) {
+    for (const prop of await facts.projectProps(member)) elsewhere.add(prop)
     const seen: Seen[] = []
     let position = Number.POSITIVE_INFINITY
     for (const prop of await facts.ownProps(member)) {
@@ -83,5 +86,6 @@ export async function readComponent(project: Project, file: string, name: string
     return shape
   })
 
-  return { name, compiler, doc: facts.doc, props: ordered, shapes, defaults: facts.defaults }
+  const own = new Set(props.keys())
+  return { name, compiler, doc: facts.doc, props: ordered, fromOtherFiles: [...elsewhere].filter((prop) => !own.has(prop)).sort(), shapes, defaults: facts.defaults }
 }

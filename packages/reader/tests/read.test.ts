@@ -41,6 +41,10 @@ describe.each(["bridge", "async"] as const)("%s compiler", (compiler) => {
     expect(shape().props.map((p) => p.name)).toEqual(["shape", "tone", "scale", "dot", "density", "label", "onPick"])
   })
 
+  test("reports the props another project file declares instead of dropping them without a word", () => {
+    expect(shape().fromOtherFiles).toEqual(["id", "title"])
+  })
+
   test("reads union members in declaration order, through an alias and through an import", () => {
     expect(prop("tone")?.values).toEqual(TONES_OF_CHIP)
     expect(prop("scale")?.values).toEqual(SCALES)
@@ -73,9 +77,57 @@ describe.each(["bridge", "async"] as const)("%s compiler", (compiler) => {
     expect(await readers[compiler].read(chip, "Missing")).toBeUndefined()
   })
 
-  test("says so when the component takes no props", async () => {
-    await expect(readers[compiler].read(chip, "Plain")).rejects.toThrow("takes no props parameter")
+  test("reads a component that takes no props as one shape with no props", async () => {
+    const plain = await readers[compiler].read(chip, "Plain")
+    expect(plain).toMatchObject({ props: [], shapes: [{}], defaults: {} })
   })
+})
+
+const forms = path.join(fixtures, "forms.ts")
+const TONES = ["info", "warn", "error"]
+
+describe.each(["bridge", "async"] as const)("%s compiler, other ways to write a component", (compiler) => {
+  const read = (name: string) => readers[compiler].read(forms, name)
+
+  test.each(["Arrow", "Annotated", "Memoed", "Forwarded", "Defaulted", "Renamed"])("%s lists the props and their union in source order", async (name) => {
+    const shape = (await read(name))!
+    const tone = shape.props.find((p) => p.name === "tone")
+    expect(tone).toMatchObject({ kind: "union", optional: true, values: TONES })
+    expect(shape.props.find((p) => p.name === "label")).toMatchObject({ kind: "data", type: "string" })
+    expect(shape.props.find((p) => p.name === "dense")).toMatchObject({ kind: "boolean", values: [false, true] })
+  })
+
+  test("reads literal defaults of every kind, by the prop's key", async () => {
+    expect((await read("Arrow"))!.defaults).toEqual({ tone: "info", dense: false, rows: 3 })
+    expect((await read("Annotated"))!.defaults).toEqual({ tone: "warn" })
+    expect((await read("Renamed"))!.defaults).toEqual({ tone: "info", depth: -2 })
+  })
+
+  test("reads the doc comment of a declared constant", async () => {
+    expect((await read("Arrow"))!.doc).toBe("An arrow function with annotated props.")
+    expect((await read("Memoed"))!.doc).toBe("A function wrapped in `memo`.")
+    expect((await read("Defaulted"))!.doc).toBe("The default export is a function declaration.")
+  })
+
+  test("reads props that come from an FC annotation, where the parameter has no type of its own", async () => {
+    expect((await read("Annotated"))!.props.map((p) => p.name)).toEqual(["tone", "dense", "label"])
+  })
+
+  test("reads a component with no parameter as having no props", async () => {
+    for (const name of ["Nothing", "Bare"]) expect(await read(name)).toMatchObject({ props: [], shapes: [{}] })
+  })
+
+  test("says so when the name is declared and is not callable", async () => {
+    await expect(read("NotAComponent")).rejects.toThrow("not callable")
+  })
+})
+
+test("both compilers read every form the same way", async () => {
+  for (const name of ["Arrow", "Annotated", "Memoed", "Forwarded", "Nothing", "Bare", "Defaulted", "Renamed"]) {
+    const { compiler: _a, ...bridge } = (await readers.bridge.read(forms, name))!
+    const { compiler: _b, ...async } = (await readers.async.read(forms, name))!
+    expect(async).toEqual(bridge)
+  }
 })
 
 test("both compilers read the same component the same way", () => {

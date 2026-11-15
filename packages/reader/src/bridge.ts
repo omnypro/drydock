@@ -1,7 +1,42 @@
 import ts from "@typescript/typescript6"
 import path from "node:path"
-import type { Compiler, ComponentFacts, Literal, Project, PropFacts, TypeFacts } from "./facts"
-import { isDefaultLibrary } from "./library"
+import type { Compiler, ComponentFacts, DefaultValue, Literal, Project, PropFacts, TypeFacts } from "./facts"
+import { isDefaultLibrary, isProjectFile } from "./library"
+import { isWrapper } from "./wrappers"
+
+type Found = { identifier: ts.Identifier; fn: ts.ArrowFunction | ts.FunctionExpression | ts.FunctionDeclaration | undefined }
+
+/** Finds the top-level declaration called `name`, and the function that defines it when the source writes one. */
+function locate(sf: ts.SourceFile, name: string): Found | undefined {
+  for (const statement of sf.statements) {
+    if (ts.isFunctionDeclaration(statement) && statement.name?.text === name) return { identifier: statement.name, fn: statement }
+    if (!ts.isVariableStatement(statement)) continue
+    for (const declaration of statement.declarationList.declarations) {
+      if (ts.isIdentifier(declaration.name) && declaration.name.text === name) return { identifier: declaration.name, fn: declaration.initializer && functionOf(declaration.initializer) }
+    }
+  }
+  return undefined
+}
+
+/** The arrow or function expression inside `memo(...)`, `forwardRef(...)`, parentheses and `as`. */
+function functionOf(expression: ts.Expression): ts.ArrowFunction | ts.FunctionExpression | undefined {
+  let node = expression
+  while (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isNonNullExpression(node)) node = node.expression
+  if (ts.isArrowFunction(node) || ts.isFunctionExpression(node)) return node
+  if (ts.isCallExpression(node) && isWrapper(ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : ts.isIdentifier(node.expression) ? node.expression.text : "")) {
+    return node.arguments[0] && functionOf(node.arguments[0])
+  }
+  return undefined
+}
+
+function literalDefault(node: ts.Expression): DefaultValue | undefined {
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text
+  if (node.kind === ts.SyntaxKind.TrueKeyword) return true
+  if (node.kind === ts.SyntaxKind.FalseKeyword) return false
+  if (ts.isNumericLiteral(node)) return Number(node.text)
+  if (ts.isPrefixUnaryExpression(node) && node.operator === ts.SyntaxKind.MinusToken && ts.isNumericLiteral(node.operand)) return -Number(node.operand.text)
+  return undefined
+}
 
 /** The reader on `@typescript/typescript6`, the package that keeps the 6.x programmatic API available beside TypeScript 7. */
 export function bridgeCompiler(): Compiler {
@@ -38,10 +73,13 @@ class BridgeProject implements Project {
     const program = this.program(target)
     const checker = program.getTypeChecker()
     const sf = program.getSourceFile(target)
-    const fn = sf?.statements.find((s): s is ts.FunctionDeclaration => ts.isFunctionDeclaration(s) && s.name?.text === name)
-    if (!sf || !fn) return undefined
-    const param = fn.parameters[0]
-    if (!param) throw new Error(`${name} in ${file} takes no props parameter`)
+    const found = sf && locate(sf, name)
+    if (!sf || !found) return undefined
+    const { identifier, fn } = found
+    const signature = checker.getTypeAtLocation(identifier).getCallSignatures()[0]
+    if (!signature) throw new Error(`${name} in ${file} is not callable, so it is not a component the reader can read`)
+    const first = signature.getParameters()[0]
+    const param = fn?.parameters[0]
 
     const types = new WeakMap<TypeFacts, ts.Type>()
     const wrap = (type: ts.Type): TypeFacts => {
@@ -53,7 +91,7 @@ class BridgeProject implements Project {
           if (type.flags & ts.TypeFlags.BooleanLiteral) return checker.typeToString(type) === "true"
           return undefined
         },
-        text: async () => checker.typeToString(type, fn, ts.TypeFormatFlags.NoTruncation).replace(/ \| undefined$/, ""),
+        text: async () => checker.typeToString(type, identifier, ts.TypeFormatFlags.NoTruncation).replace(/ \| undefined$/, ""),
       }
       types.set(facts, type)
       return facts
@@ -87,18 +125,20 @@ class BridgeProject implements Project {
       return out
     }
 
-    const symbolOfFn = checker.getSymbolAtLocation(fn.name!)
-    const defaults: Record<string, string> = {}
-    if (ts.isObjectBindingPattern(param.name)) {
+    const symbolOfFn = checker.getSymbolAtLocation(identifier)
+    const defaults: Record<string, DefaultValue> = {}
+    if (param && ts.isObjectBindingPattern(param.name)) {
       for (const element of param.name.elements) {
-        if (element.initializer && ts.isStringLiteral(element.initializer) && ts.isIdentifier(element.name)) defaults[element.name.text] = element.initializer.text
+        const key = element.propertyName ?? element.name
+        const value = element.initializer && literalDefault(element.initializer)
+        if (value !== undefined && (ts.isIdentifier(key) || ts.isStringLiteral(key))) defaults[key.text] = value
       }
     }
 
     return {
       doc: symbolOfFn ? ts.displayPartsToString(symbolOfFn.getDocumentationComment(checker)) : "",
       defaults,
-      props: wrap(checker.getTypeAtLocation(param)),
+      props: first && wrap(checker.getTypeOfSymbolAtLocation(first, identifier)),
       ownProps: async (shape) => {
         const type = types.get(shape)!
         const own = (symbol: ts.Symbol) => (symbol.declarations ?? []).some((d) => d.getSourceFile() === sf)
@@ -112,11 +152,16 @@ class BridgeProject implements Project {
               optional: Boolean(symbol.flags & ts.SymbolFlags.Optional),
               position: Math.min(...inFile.map((d) => d.pos)),
               doc: async () => ts.displayPartsToString(symbol.getDocumentationComment(checker)),
-              type: async () => wrap(checker.getTypeOfSymbolAtLocation(symbol, fn)),
+              type: async () => wrap(checker.getTypeOfSymbolAtLocation(symbol, identifier)),
               declaredOrder: async () => declaredOrder(inFile),
             }
           })
       },
+      projectProps: async (shape) =>
+        checker
+          .getPropertiesOfType(types.get(shape)!)
+          .filter((symbol) => (symbol.declarations ?? []).every((d) => d.getSourceFile() !== sf) && (symbol.declarations ?? []).some((d) => isProjectFile(d.getSourceFile().fileName)))
+          .map((symbol) => symbol.name),
     }
   }
 }

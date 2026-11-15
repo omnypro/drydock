@@ -1,6 +1,9 @@
 /** A literal that a prop can take. Props made of anything else are `data`. */
 export type Literal = string | boolean
 
+/** A default the component's destructuring gives a prop, when the default is a literal. */
+export type DefaultValue = string | boolean | number
+
 /**
  * What the reader needs from a TypeScript compiler. An adapter implements these and nothing else touches the compiler,
  * so moving from one compiler version to another changes one file.
@@ -14,19 +17,25 @@ export interface Compiler {
 }
 
 export interface Project {
-  /** A function component's props, or `undefined` when the file has no function of that name. */
+  /**
+   * A component's props, or `undefined` when the file declares nothing of that name. A declaration with a function
+   * type is a component: a function, an arrow, an annotated `FC<Props>`, or `memo` and `forwardRef` around one.
+   * It throws when the name is declared and its type cannot be called.
+   */
   component(file: string, name: string): Promise<ComponentFacts | undefined>
 }
 
 export interface ComponentFacts {
   /** The component's doc comment. */
   doc: string
-  /** The string defaults in the parameter's destructuring: `{ size = "md" }`. */
-  defaults: Record<string, string>
-  /** The type of the first parameter. */
-  props: TypeFacts
+  /** The literal defaults in the parameter's destructuring: `{ size = "md", dense = false }`, by prop name. */
+  defaults: Record<string, DefaultValue>
+  /** The type of the first parameter, or `undefined` when the component takes none. */
+  props: TypeFacts | undefined
   /** The props of one member of the props type that are declared in the component's own file. */
   ownProps(shape: TypeFacts): Promise<PropFacts[]>
+  /** The names of props of that member that a project file other than the component's declares. The reader leaves them out and reports them. */
+  projectProps(shape: TypeFacts): Promise<string[]>
 }
 
 export interface TypeFacts {
