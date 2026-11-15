@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { readTokens } from "../src/tokens/read"
+import { displayTokens, readTokens } from "../src/tokens/read"
 
 const css = `
 :root {
@@ -95,5 +95,35 @@ describe("var() fallbacks", () => {
 
   test("leaves a loop as written instead of expanding it", () => {
     expect(resolved("--a: var(--b) var(--b); --b: var(--a) var(--a)", "--a")).toBe("var(--a) var(--a) var(--a) var(--a)")
+  })
+})
+
+describe("displayTokens", () => {
+  const show = (source: string) => displayTokens(readTokens([{ file: "t.css", css: source }])).map((t) => [t.name, t.resolved])
+
+  test("takes the dark value over the base one, and resolves aliases against it", () => {
+    expect(
+      show(`
+        :root { --bg: #fff; --fg: var(--bg); --edge: #ccc }
+        @media (prefers-color-scheme: dark) { :root { --bg: #000 } }
+        :root[data-theme="dark"] { --edge: #333 }
+      `),
+    ).toEqual([
+      ["--bg", "#000"],
+      ["--fg", "#000"],
+      ["--edge", "#333"],
+    ])
+  })
+
+  test("leaves a light block off the page and keeps a token that exists only in dark", () => {
+    expect(show(`:root { --a: 1px } @media (prefers-color-scheme: light) { :root { --a: 2px } } @media (prefers-color-scheme: dark) { :root { --only: 3px } }`)).toEqual([
+      ["--a", "1px"],
+      ["--only", "3px"],
+    ])
+  })
+
+  test("lists a name once when two files declare it, with the last value", () => {
+    const tokens = displayTokens(readTokens([{ file: "a.css", css: ":root { --x: 1px }" }, { file: "b.css", css: ":root { --x: 2px }" }]))
+    expect(tokens.map((t) => [t.name, t.resolved, t.file])).toEqual([["--x", "2px", "b.css"]])
   })
 })

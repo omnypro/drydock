@@ -11,7 +11,7 @@ export type Token = {
   group: string
   /** The stylesheet the token is declared in, from the project root. */
   file: string
-  /** What the token applies under, such as `@media (prefers-color-scheme: dark)`. Absent for a token that always applies. */
+  /** What the token applies under, such as `@media (prefers-color-scheme: dark)`. Absent for a token that always applies. The page's data has none: it holds the dark values. */
   condition?: string
 }
 

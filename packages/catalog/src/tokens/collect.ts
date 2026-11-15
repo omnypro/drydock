@@ -4,7 +4,7 @@ import { glob } from "tinyglobby"
 import postcss from "postcss"
 import type { ResolvedProject } from "../project"
 import { scanRaw } from "./raw"
-import { readTokens } from "./read"
+import { displayTokens, readTokens } from "./read"
 import type { TokensData } from "./types"
 
 /** The absolute paths of every file the tokens page reads, so a watcher can follow them. */
@@ -33,7 +33,7 @@ export async function collectTokens(project: ResolvedProject): Promise<TokensDat
     )
     return sources.filter((source) => source !== undefined)
   }
-  const tokens = readTokens(await read(tokenFiles))
+  const tokens = displayTokens(readTokens(await read(tokenFiles)))
   const sources = await read(scanFiles.filter((file) => !tokenFiles.includes(file)))
   return { tokens, raw: scanRaw(sources, tokens), scanned: sources.length, unreadable: unreadable.sort((a, b) => a.file.localeCompare(b.file)) }
 }

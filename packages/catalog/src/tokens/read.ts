@@ -109,3 +109,20 @@ export function readTokens(sources: { file: string; css: string }[]): Token[] {
     return { ...token, resolved: resolve(token.value, (name) => own?.get(name) ?? base.get(name), [token.name]) }
   })
 }
+
+/**
+ * The tokens as the page draws them. Dark is the design, so a token declared under a dark condition replaces the base
+ * value of the same name, and the aliases around it resolve against it. Other conditions, light among them, are left off.
+ */
+export function displayTokens(tokens: Token[]): Token[] {
+  const dark = new Map<string, Token>()
+  const base = new Map<string, Token>()
+  for (const token of tokens) {
+    if (!token.condition) base.set(token.name, token)
+    else if (/dark/i.test(token.condition)) dark.set(token.name, token)
+  }
+  const chosen = new Map(base)
+  for (const [name, token] of dark) chosen.set(name, token)
+  const lookup = (name: string) => chosen.get(name)?.value
+  return [...chosen.values()].map(({ condition: _condition, ...token }) => ({ ...token, resolved: resolve(token.value, lookup, [token.name]) }))
+}
