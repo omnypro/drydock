@@ -151,29 +151,27 @@ class BridgeProject implements Project {
       doc: symbolOfFn ? ts.displayPartsToString(symbolOfFn.getDocumentationComment(checker)) : "",
       defaults,
       props: first && wrap(checker.getTypeOfSymbolAtLocation(first, identifier)),
-      ownProps: async (shape) => {
-        const type = types.get(shape)!
-        const own = (symbol: ts.Symbol) => (symbol.declarations ?? []).some((d) => d.getSourceFile() === sf)
-        return checker
-          .getPropertiesOfType(type)
-          .filter(own)
-          .map((symbol): PropFacts => {
-            const inFile = (symbol.declarations ?? []).filter((d) => d.getSourceFile() === sf)
+      declaredProps: async (shape) =>
+        checker
+          .getPropertiesOfType(types.get(shape)!)
+          .map((symbol): PropFacts | undefined => {
+            const inProject = (symbol.declarations ?? []).filter((d) => isProjectFile(d.getSourceFile().fileName))
+            if (inProject.length === 0) return undefined
+            const own = inProject.some((d) => d.getSourceFile() === sf)
+            const file = own ? sf.fileName : inProject[0]!.getSourceFile().fileName
+            const here = inProject.filter((d) => d.getSourceFile().fileName === file)
             return {
               name: symbol.name,
               optional: Boolean(symbol.flags & ts.SymbolFlags.Optional),
-              position: Math.min(...inFile.map((d) => d.pos)),
+              file,
+              own,
+              position: Math.min(...here.map((d) => d.pos)),
               doc: async () => ts.displayPartsToString(symbol.getDocumentationComment(checker)),
               type: async () => wrap(checker.getTypeOfSymbolAtLocation(symbol, identifier)),
-              declaredOrder: async () => declaredOrder(inFile),
+              declaredOrder: async () => declaredOrder(inProject),
             }
           })
-      },
-      projectProps: async (shape) =>
-        checker
-          .getPropertiesOfType(types.get(shape)!)
-          .filter((symbol) => (symbol.declarations ?? []).every((d) => d.getSourceFile() !== sf) && (symbol.declarations ?? []).some((d) => isProjectFile(d.getSourceFile().fileName)))
-          .map((symbol) => symbol.name),
+          .filter((prop) => prop !== undefined),
     }
   }
 }

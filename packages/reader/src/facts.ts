@@ -34,10 +34,8 @@ export interface ComponentFacts {
   defaults: Record<string, DefaultValue>
   /** The type of the first parameter, or `undefined` when the component takes none. */
   props: TypeFacts | undefined
-  /** The props of one member of the props type that are declared in the component's own file. */
-  ownProps(shape: TypeFacts): Promise<PropFacts[]>
-  /** The names of props of that member that a project file other than the component's declares. The reader leaves them out and reports them. */
-  projectProps(shape: TypeFacts): Promise<string[]>
+  /** The props of one member of the props type that a file of the project declares. Props that an installed package declares are left out. */
+  declaredProps(shape: TypeFacts): Promise<PropFacts[]>
 }
 
 export interface TypeFacts {
@@ -56,7 +54,11 @@ export interface TypeFacts {
 export interface PropFacts {
   name: string
   optional: boolean
-  /** Where the prop is declared in its file. Shapes are ordered by it. */
+  /** The file that declares the prop: the component's own when it declares it there, else the first project file that does. */
+  file: string
+  /** Whether `file` is the component's own file. */
+  own: boolean
+  /** Where the prop is declared in `file`. Props are ordered by it. */
   position: number
   doc(): Promise<string>
   type(): Promise<TypeFacts>

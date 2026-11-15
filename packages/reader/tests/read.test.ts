@@ -39,12 +39,16 @@ describe.each(["bridge", "async"] as const)("%s compiler", (compiler) => {
     expect(shape().defaults).toEqual({ shape: "soft", scale: "normal" })
   })
 
-  test("lists the props in source order and leaves out the ones another file declares", () => {
-    expect(shape().props.map((p) => p.name)).toEqual(["shape", "tone", "scale", "dot", "density", "label", "onPick"])
+  test("lists the component's own props in source order, then the props another project file declares", () => {
+    expect(shape().props.map((p) => p.name)).toEqual(["shape", "tone", "scale", "dot", "density", "label", "onPick", "title", "id"])
   })
 
-  test("reports the props another project file declares instead of dropping them without a word", () => {
-    expect(shape().fromOtherFiles).toEqual(["id", "title"])
+  test("says which file declares a prop that is not in the component's own file", () => {
+    expect(shape().props.filter((p) => p.declaredIn).map((p) => [p.name, p.declaredIn])).toEqual([
+      ["title", "./native.ts"],
+      ["id", "./native.ts"],
+    ])
+    expect(prop("shape")).not.toHaveProperty("declaredIn")
   })
 
   test("reads union members in declaration order, through an alias and through an import", () => {

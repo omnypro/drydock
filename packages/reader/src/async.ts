@@ -176,7 +176,7 @@ class AsyncProject implements Project {
         for (const child of children(node)) await visit(child, depth)
       }
       for (const handle of symbol.declarations) {
-        if (handle.path !== sf.path) continue
+        if (!isProjectFile(handle.path)) continue
         const declaration = await handle.resolve()
         if (declaration && isPropertySignatureDeclaration(declaration) && declaration.type) await visit(declaration.type, 0)
       }
@@ -197,28 +197,25 @@ class AsyncProject implements Project {
       doc: symbolOfFn ? await symbolOfFn.getDocumentationComment(checker) : "",
       defaults,
       props: first && wrap(await checker.getTypeOfSymbolAtLocation(first, identifier)),
-      ownProps: async (shape) => {
-        const type = types.get(shape)!
+      declaredProps: async (shape) => {
         const out: PropFacts[] = []
-        for (const symbol of await checker.getPropertiesOfType(type)) {
-          const inFile = symbol.declarations.filter((h) => h.path === sf.path)
-          if (inFile.length === 0) continue
-          const positions = await Promise.all(inFile.map(async (h) => (await h.resolve())?.pos ?? Number.POSITIVE_INFINITY))
+        for (const symbol of await checker.getPropertiesOfType(types.get(shape)!)) {
+          const inProject = symbol.declarations.filter((h) => isProjectFile(h.path))
+          if (inProject.length === 0) continue
+          const own = inProject.some((h) => h.path === sf.path)
+          const file = own ? sf.path : inProject[0]!.path
+          const positions = await Promise.all(inProject.filter((h) => h.path === file).map(async (h) => (await h.resolve())?.pos ?? Number.POSITIVE_INFINITY))
           out.push({
             name: symbol.name,
             optional: Boolean(symbol.flags & SymbolFlags.Optional),
+            // The compiler names files by a lowercased path on a case-insensitive disk. The source file keeps the real one.
+            file: (await program.getSourceFile(file))?.fileName ?? file,
+            own,
             position: Math.min(...positions),
             doc: () => symbol.getDocumentationComment(checker),
             type: async () => wrap(await checker.getTypeOfSymbolAtLocation(symbol, identifier)),
             declaredOrder: () => declaredOrder(symbol),
           })
-        }
-        return out
-      },
-      projectProps: async (shape) => {
-        const out: string[] = []
-        for (const symbol of await checker.getPropertiesOfType(types.get(shape)!)) {
-          if (symbol.declarations.every((h) => h.path !== sf.path) && symbol.declarations.some((h) => isProjectFile(h.path))) out.push(symbol.name)
         }
         return out
       },

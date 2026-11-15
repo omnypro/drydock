@@ -8,6 +8,8 @@ export type PropShape = {
   /** The type as written. */
   type: string
   doc: string
+  /** The file that declares the prop, from the component's folder, when it is not the component's own file: `./lines.tsx`. */
+  declaredIn?: string
   /** Every literal the prop takes across all shapes, in declaration order. */
   values: Literal[]
   /**
@@ -23,8 +25,6 @@ export type ComponentShape = {
   compiler: string
   doc: string
   props: PropShape[]
-  /** Props that another file of the project declares. They are not in `props`. A component typed from a shared `RowProps` lists its props here. */
-  fromOtherFiles: string[]
   /** One entry per member of the props type: the literal props of that member. */
   shapes: Record<string, Literal[]>[]
   defaults: Record<string, DefaultValue>
