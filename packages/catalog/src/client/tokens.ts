@@ -1,18 +1,7 @@
 import { createHotContext } from "/@vite/client"
 import css from "./catalog.css?inline"
+import { h } from "./dom"
 import type { RawValue, Token, TokensData } from "../tokens/types"
-
-type Child = Node | string | null | undefined | false
-
-function h(tag: string, props: Record<string, string> = {}, ...children: Child[]): HTMLElement {
-  const el = document.createElement(tag)
-  for (const [key, value] of Object.entries(props)) {
-    if (key === "style") el.style.cssText = value
-    else el.setAttribute(key, value)
-  }
-  for (const child of children) if (child) el.append(child)
-  return el
-}
 
 function tile(token: Token): HTMLElement {
   return h(

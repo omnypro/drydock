@@ -22,3 +22,21 @@
 .dd td.n { text-align: right; font-variant-numeric: tabular-nums; }
 .dd td .chip { display: inline-block; width: 0.875rem; height: 0.875rem; margin-right: 0.5rem; vertical-align: -2px; border: 1px solid var(--dd-line); border-radius: 2px; }
 .dd .files { color: var(--dd-dim); overflow-wrap: anywhere; }
+.dd.page { font: inherit; max-width: 80rem; }
+.dd.page .m, .dd.page h1, .dd.page h2, .dd.page table, .dd.page summary, .dd.page nav { font-family: ui-monospace, Menlo, monospace; }
+.dd.page .m, .dd.page table, .dd.page summary { font-size: 12px; line-height: 1.4; }
+.dd.page h1 { font-size: 1.75rem; font-weight: 600; }
+.dd.page .doc { margin: 0.5rem 0 0; max-width: 48rem; }
+.dd.page .meta { margin: 0.75rem 0 0; color: var(--dd-dim); }
+.dd.page .meta a { color: inherit; }
+.dd.page td.stage, .dd.page .stage { padding: 0.75rem 1rem 0.75rem 0; vertical-align: middle; }
+.dd.page .stage > div { display: inline-flex; align-items: center; }
+.dd.page .boxed > div { border: 1px dashed var(--dd-line); padding: 0.5rem; }
+.dd.page .error { margin: 0; padding: 0.5rem; border: 1px solid currentColor; color: #c0392b; white-space: pre-wrap; font: 12px/1.4 ui-monospace, Menlo, monospace; }
+.dd.page tr.group th { padding-top: 1.25rem; color: inherit; }
+.dd.page td.dim, .dd.page .dim { color: var(--dd-dim); }
+.dd.page details { margin-top: 0.75rem; }
+.dd.page details table { margin-top: 0.5rem; }
+.dd.page .cases { display: grid; gap: 1.5rem; }
+.dd.page .case h3 { margin: 0 0 0.5rem; font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--dd-dim); font-weight: 400; }
+.dd.page table.index td a { color: inherit; }

@@ -11,6 +11,8 @@ if (!rootArg) {
 }
 const root = path.resolve(rootArg)
 const config = (await import(path.resolve(configArg ?? path.join(root, "drydock.config.ts")))).default as ProjectConfig
+// The app's own `vite dev` runs from the app's folder. Its plugins resolve their presets and read env files from there.
+process.chdir(path.dirname(path.resolve(root, config.appConfig)))
 const base = await catalogViteConfig({ ...config, root }, { command: "serve", mode: "development" })
 const server = await createServer({ ...base, server: { ...base.server, port: Number(portArg ?? 6100), strictPort: true } })
 await server.listen()

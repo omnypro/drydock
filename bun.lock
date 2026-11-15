@@ -8,12 +8,15 @@
     "packages/catalog": {
       "name": "@drydock/catalog",
       "dependencies": {
+        "@drydock/ledger": "workspace:*",
+        "@drydock/reader": "workspace:*",
         "postcss": "^8.5.33",
         "postcss-value-parser": "^4.2.0",
         "tinyglobby": "^0.2.0",
       },
       "devDependencies": {
         "@types/bun": "^1.4.2",
+        "@types/react": "^19",
         "playwright-core": "1.64.1",
         "typescript": "~6.0.2",
         "vite": "^8.3.5",
