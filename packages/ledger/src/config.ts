@@ -31,7 +31,7 @@ export type LedgerComponent = {
   parts: string[]
   /** The parts that an app reaches. */
   partsInApp: string[]
-  /** The longest chain of components under this one. Level 0 renders no other component. */
+  /** One above the deepest component under this one. Level 0 renders no other component. Components that render each other share a level. */
   level: number
   /** The apps whose entry points reach this file. */
   apps: string[]
@@ -43,6 +43,8 @@ export type LedgerComponent = {
   usedBy: string[]
   /** The entry files that render it directly. */
   routedBy: string[]
+  /** Files that render it and are neither components, entries, showcases nor tests, such as a router or a lookup table of views. */
+  referencedBy: string[]
 }
 
 export type Unresolved = {
@@ -66,7 +68,7 @@ export type Ledger = {
   showcaseFiles: number
   entries: string[]
   components: LedgerComponent[]
-  /** Imports of a name that the module does not export, by `name from specifier`. */
+  /** Named imports that the module they come from does not export, by `name from specifier`. */
   failed: { import: string; count: number }[]
   /** Imports no file answers to. Data, never an error: the ledger does not fail a build. */
   unresolved: Unresolved[]

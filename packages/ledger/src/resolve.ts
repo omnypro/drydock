@@ -30,9 +30,13 @@ function exportsAnAsset(specifier: string, from: string): boolean {
   for (let dir = path.dirname(from); ; dir = path.dirname(dir)) {
     const manifest = path.join(dir, "node_modules", name, "package.json")
     if (ts.sys.fileExists(manifest)) {
-      let exported: unknown = (JSON.parse(ts.sys.readFile(manifest) ?? "{}") as { exports?: Record<string, unknown> }).exports?.[subpath]
-      while (exported && typeof exported === "object") exported = Object.values(exported)[0]
-      return typeof exported === "string" && ASSET.test(exported)
+      try {
+        let exported: unknown = (JSON.parse(ts.sys.readFile(manifest) ?? "{}") as { exports?: Record<string, unknown> }).exports?.[subpath]
+        while (exported && typeof exported === "object") exported = Object.values(exported)[0]
+        return typeof exported === "string" && ASSET.test(exported)
+      } catch {
+        return false
+      }
     }
     if (dir === path.dirname(dir)) return false
   }
@@ -48,7 +52,7 @@ function parseConfig(file: string): ts.ParsedCommandLine | undefined {
 }
 
 /**
- * Resolves imports the way the project's own compiler would. Each file is resolved with the options of a
+ * Resolves imports the way the project's own compiler would. Each file is resolved with the options of the nearest
  * `tsconfig` that includes it: `paths` aliases and package `exports` need no entry of their own.
  */
 export function createResolver(root: string, files: Set<string>): Resolver {
@@ -62,25 +66,32 @@ export function createResolver(root: string, files: Set<string>): Resolver {
     }
     return scope
   }
-  const byFile = new Map<string, Scope>()
+  type Claim = { scope: Scope; depth: number; rank: number }
+  const byFile = new Map<string, Claim>()
   const parsed = new Map<string, ts.ParsedCommandLine | undefined>()
   for (const config of configs) {
     const result = parseConfig(config)
     parsed.set(config, result)
     if (!result) continue
-    const scope = scopeOf(result.options)
-    for (const name of result.fileNames) if (!byFile.has(name)) byFile.set(name, scope)
+    const claim: Claim = { scope: scopeOf(result.options), depth: config.split(path.sep).length, rank: rank(config) }
+    for (const name of result.fileNames) {
+      const known = byFile.get(name)
+      // The config nearest the file answers for it. At the same depth, `tsconfig.json` and then `tsconfig.app.json` come first.
+      if (!known || claim.depth > known.depth || (claim.depth === known.depth && claim.rank < known.rank)) byFile.set(name, claim)
+    }
   }
   const ancestor = new Map<string, Scope>()
   const scopeFor = (file: string): Scope => {
     const known = byFile.get(file)
-    if (known) return known
+    if (known) return known.scope
     for (let dir = path.dirname(file); dir.startsWith(root); dir = path.dirname(dir)) {
       const cached = ancestor.get(dir)
       if (cached) return cached
-      const nearest = ["tsconfig.json", "tsconfig.app.json"].map((name) => path.join(dir, name)).find((candidate) => parsed.get(candidate))
-      if (nearest) {
-        const scope = scopeOf(parsed.get(nearest)!.options)
+      // A solution-style `tsconfig.json` holds no options. The config beside it that does hold `paths` stands in.
+      const beside = configs.filter((candidate) => path.dirname(candidate) === dir && parsed.get(candidate))
+      const chosen = beside.find((candidate) => parsed.get(candidate)!.options.paths) ?? beside[0]
+      if (chosen) {
+        const scope = scopeOf(parsed.get(chosen)!.options)
         ancestor.set(dir, scope)
         return scope
       }
@@ -90,8 +101,12 @@ export function createResolver(root: string, files: Set<string>): Resolver {
   }
 
   const tryFile = (base: string): string | undefined => {
-    for (const extension of EXTENSIONS) if (files.has(base + extension)) return base + extension
-    for (const index of INDEXES) if (files.has(path.join(base, index))) return path.join(base, index)
+    // TypeScript writes the extension of the file it will compile to: `./Card.js` names `Card.ts` or `Card.tsx`.
+    const stems = [base, ...(/\.(m|c)?jsx?$/.test(base) ? [base.replace(/\.(m|c)?jsx?$/, "")] : [])]
+    for (const stem of stems) {
+      for (const extension of EXTENSIONS) if (files.has(stem + extension)) return stem + extension
+      for (const index of INDEXES) if (files.has(path.join(stem, index))) return path.join(stem, index)
+    }
     return undefined
   }
 

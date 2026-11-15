@@ -8,8 +8,59 @@ import { createResolver, IGNORED, type Resolution } from "./resolve"
 const NAME_SEP = "\0"
 const sym = (file: string, name: string) => `${file}${NAME_SEP}${name}`
 const fileOf = (symbol: string) => symbol.slice(0, symbol.indexOf(NAME_SEP))
-const isComponentName = (name: string) => /^[A-Z]/.test(name) && !/^[A-Z0-9_]+$/.test(name)
 const isTest = (file: string) => /\.test\.tsx?$/.test(file) || /(^|\/)tests?\//.test(file)
+
+type Hit = { file: string; name: string }
+
+/**
+ * The strongly connected groups of a graph, with sinks first. Each file in a cycle is in the same group.
+ * It runs without recursion, so a long chain of components does not overflow the stack.
+ */
+function components(nodes: string[], edges: (node: string) => Iterable<string>): string[][] {
+  const index = new Map<string, number>()
+  const low = new Map<string, number>()
+  const onStack = new Set<string>()
+  const stack: string[] = []
+  const groups: string[][] = []
+  let counter = 0
+  for (const start of nodes) {
+    if (index.has(start)) continue
+    const work: { node: string; next: Iterator<string> }[] = [{ node: start, next: edges(start)[Symbol.iterator]() }]
+    index.set(start, counter)
+    low.set(start, counter++)
+    stack.push(start)
+    onStack.add(start)
+    while (work.length) {
+      const frame = work[work.length - 1]!
+      const step = frame.next.next()
+      if (!step.done) {
+        const to = step.value
+        if (!index.has(to)) {
+          index.set(to, counter)
+          low.set(to, counter++)
+          stack.push(to)
+          onStack.add(to)
+          work.push({ node: to, next: edges(to)[Symbol.iterator]() })
+        } else if (onStack.has(to)) low.set(frame.node, Math.min(low.get(frame.node)!, index.get(to)!))
+        continue
+      }
+      work.pop()
+      const parent = work[work.length - 1]
+      if (parent) low.set(parent.node, Math.min(low.get(parent.node)!, low.get(frame.node)!))
+      if (low.get(frame.node) === index.get(frame.node)) {
+        const group: string[] = []
+        let member: string
+        do {
+          member = stack.pop()!
+          onStack.delete(member)
+          group.push(member)
+        } while (member !== frame.node)
+        groups.push(group)
+      }
+    }
+  }
+  return groups
+}
 
 /**
  * Follows a project's imports, declaration by declaration and through index files, and records for each component
@@ -62,41 +113,57 @@ export function deriveLedger(config: LedgerConfig): Ledger {
     return resolution.kind === "file" ? resolution.file : undefined
   }
 
-  type Hit = { file: string; name: string }
-  const resolveExport = (file: string | undefined, name: string, seen = new Set<string>()): Hit | undefined => {
-    if (!file) return undefined
-    const key = `${file}${NAME_SEP}${name}`
-    if (seen.has(key)) return undefined
-    seen.add(key)
+  /** Every name a file exports, with the declaration that each one stands for, through re-exports and `export *`. */
+  const tables = new Map<string, Map<string, Hit>>()
+  const building = new Set<string>()
+  const exportTable = (file: string): Map<string, Hit> => {
+    const known = tables.get(file)
+    if (known) return known
+    const table = new Map<string, Hit>()
     const mod = mods.get(file)
-    if (!mod) return undefined
-    const local = mod.exports.get(name)
-    if (local !== undefined) {
-      if (mod.declarations.has(local)) return { file, name: local }
+    if (!mod || building.has(file)) return table
+    building.add(file)
+    const through = (specifier: string, name: string): Hit | undefined => {
+      const next = target(file, specifier)
+      if (!next) return undefined
+      return name === "*" ? { file: next, name: "*" } : exportTable(next).get(name)
+    }
+    for (const [name, local] of mod.exports) {
       const imported = mod.imports.get(local)
-      if (imported) {
-        const next = target(file, imported.specifier)
-        if (imported.name === "*") return next ? { file: next, name: "*" } : undefined
-        return resolveExport(next, imported.name, seen)
-      }
+      const hit = mod.declarations.has(local) ? { file, name: local } : imported && through(imported.specifier, imported.name)
+      if (hit) table.set(name, hit)
     }
     for (const reexport of mod.reexports) {
-      if (reexport.as !== name) continue
-      const next = target(file, reexport.specifier)
-      return reexport.name === "*" ? (next ? { file: next, name: "*" } : undefined) : resolveExport(next, reexport.name, seen)
+      const hit = through(reexport.specifier, reexport.name)
+      if (hit) table.set(reexport.as, hit)
     }
     for (const star of mod.stars) {
-      const hit = resolveExport(target(file, star), name, seen)
-      if (hit) return hit
+      const next = target(file, star)
+      if (!next) continue
+      for (const [name, hit] of exportTable(next)) if (name !== "default" && !table.has(name)) table.set(name, hit)
     }
-    return undefined
+    building.delete(file)
+    tables.set(file, table)
+    return table
+  }
+
+  const isValue = (hit: Hit) => mods.get(hit.file)?.declarations.get(hit.name)?.kind !== "type"
+  /** Adds the declarations that a module read as a whole can give: the named members, or every export when it is used as itself. */
+  const addNamespace = (out: Set<string>, file: string, members: Set<string> | undefined, bare: boolean, seen = new Set<string>()) => {
+    if (seen.has(file)) return
+    seen.add(file)
+    out.add(sym(file, MODULE))
+    const table = exportTable(file)
+    for (const name of bare || !members ? table.keys() : members) {
+      const hit = table.get(name)
+      if (!hit) continue
+      if (hit.name === "*") addNamespace(out, hit.file, undefined, true, seen)
+      else if (isValue(hit)) out.add(sym(hit.file, hit.name))
+    }
   }
 
   const failed = new Map<string, number>()
   const edges = new Map<string, Set<string>>()
-  const everyValue = (file: string, into: Set<string>) => {
-    for (const [name, declaration] of mods.get(file)!.declarations) if (declaration.kind !== "type") into.add(sym(file, name))
-  }
   for (const mod of mods.values()) {
     for (const [name, declaration] of mod.declarations) {
       if (declaration.kind === "type") continue
@@ -112,21 +179,21 @@ export function deriveLedger(config: LedgerConfig): Ledger {
         const next = target(mod.file, imported.specifier)
         if (!next) continue
         if (imported.name === "*") {
-          everyValue(next, out)
+          addNamespace(out, next, declaration.members.get(ref), declaration.bare.has(ref))
           continue
         }
-        const hit = resolveExport(next, imported.name)
+        const hit = exportTable(next).get(imported.name)
         if (!hit) {
           const key = `${imported.name} from ${imported.specifier}`
           failed.set(key, (failed.get(key) ?? 0) + 1)
           continue
         }
-        if (hit.name === "*") everyValue(hit.file, out)
-        else if (mods.get(hit.file)!.declarations.get(hit.name)?.kind !== "type") out.add(sym(hit.file, hit.name))
+        if (hit.name === "*") addNamespace(out, hit.file, declaration.members.get(ref), declaration.bare.has(ref))
+        else if (isValue(hit)) out.add(sym(hit.file, hit.name))
       }
       for (const specifier of declaration.dynamic) {
         const next = target(mod.file, specifier)
-        if (next) everyValue(next, out)
+        if (next) addNamespace(out, next, undefined, true)
       }
       if (name === MODULE) {
         // Loading a module runs the top level of every module it imports for its effects.
@@ -169,10 +236,15 @@ export function deriveLedger(config: LedgerConfig): Ledger {
     const parts: Part[] = mod.astro
       ? [{ as: nameFromFile(file), local: ASTRO }]
       : [...mod.exports]
-          .filter(([, local]) => mod.declarations.get(local)?.kind === "value")
           .map(([as, local]) => ({ as: as === "default" ? (local === "default" ? nameFromFile(file) : local) : as, local }))
-          .filter((part) => isComponentName(part.as))
-    if (parts.length) catalog.set(file, parts)
+          .filter(({ as, local }) => {
+            const declaration = mod.declarations.get(local)
+            if (declaration?.kind !== "value" || !/^[A-Z]/.test(as)) return false
+            // A function is a component whatever its name. Anything else needs a name that is not a constant's.
+            return declaration.callable || (declaration.opaque && !/^[A-Z0-9_]+$/.test(as))
+          })
+    const unique = parts.filter((part, at) => parts.findIndex((other) => other.as === part.as && other.local === part.local) === at)
+    if (unique.length) catalog.set(file, unique)
   }
   const componentOf = new Map<string, string>()
   for (const [file, parts] of catalog) for (const part of parts) componentOf.set(sym(file, part.local), file)
@@ -182,6 +254,7 @@ export function deriveLedger(config: LedgerConfig): Ledger {
   const usedBy = sets()
   const shownIn = sets()
   const routedBy = sets()
+  const referencedBy = sets()
   for (const [symbol, out] of edges) {
     const file = fileOf(symbol)
     for (const next of out) {
@@ -192,24 +265,21 @@ export function deriveLedger(config: LedgerConfig): Ledger {
         builtFrom.get(file)!.add(owner)
         usedBy.get(owner)!.add(file)
       } else if (isEntry(file)) routedBy.get(owner)!.add(file)
+      else if (!isTest(rel(file))) referencedBy.get(owner)!.add(file)
     }
   }
 
-  const depth = new Map<string, number>()
-  const level = (file: string, stack = new Set<string>()): number => {
-    const known = depth.get(file)
-    if (known !== undefined) return known
-    if (stack.has(file)) return 0
-    stack.add(file)
-    let deepest = 0
-    for (const child of builtFrom.get(file)!) deepest = Math.max(deepest, 1 + level(child, stack))
-    stack.delete(file)
-    depth.set(file, deepest)
-    return deepest
+  // A level is one above the deepest component under it. Files that render each other share one level, so a rename cannot change it.
+  const levels = new Map<string, number>()
+  for (const group of components([...catalog.keys()].sort(), (file) => [...builtFrom.get(file)!].sort())) {
+    const inside = new Set(group)
+    let level = group.length > 1 ? 1 : 0
+    for (const file of group) for (const child of builtFrom.get(file)!) if (!inside.has(child)) level = Math.max(level, 1 + levels.get(child)!)
+    for (const file of group) levels.set(file, level)
   }
 
   const paths = (set: Set<string>) => [...set].map(rel).sort()
-  const components: LedgerComponent[] = [...catalog].map(([file, parts]) => {
+  const result: LedgerComponent[] = [...catalog].map(([file, parts]) => {
     const reached = (part: Part) => [...reachedBy.values()].some((seen) => seen.has(sym(file, part.local)))
     const base = path.basename(file).replace(/\.\w+$/, "")
     return {
@@ -219,16 +289,17 @@ export function deriveLedger(config: LedgerConfig): Ledger {
       filed: path.dirname(rel(file)),
       parts: parts.map((part) => part.as),
       partsInApp: parts.filter(reached).map((part) => part.as),
-      level: level(file),
+      level: levels.get(file)!,
       apps: [...reachedBy].filter(([, seen]) => parts.some((part) => seen.has(sym(file, part.local)))).map(([app]) => app),
       inShowcase: parts.some((part) => reachedByShowcases.has(sym(file, part.local))),
       shownIn: paths(shownIn.get(file)!),
       builtFrom: paths(builtFrom.get(file)!),
       usedBy: paths(usedBy.get(file)!),
       routedBy: paths(routedBy.get(file)!),
+      referencedBy: paths(referencedBy.get(file)!),
     }
   })
-  components.sort((a, b) => a.id.localeCompare(b.id))
+  result.sort((a, b) => a.id.localeCompare(b.id))
 
   return {
     root,
@@ -236,7 +307,7 @@ export function deriveLedger(config: LedgerConfig): Ledger {
     astro: files.filter((file) => file.endsWith(".astro")).length,
     showcaseFiles: showcaseFiles.length,
     entries: entries.map(rel),
-    components,
+    components: result,
     failed: [...failed].map(([key, count]) => ({ import: key, count })).sort((a, b) => b.count - a.count || a.import.localeCompare(b.import)),
     unresolved: [...missed.values()].sort((a, b) => b.count - a.count || a.specifier.localeCompare(b.specifier)),
   }
