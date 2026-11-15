@@ -1,0 +1,24 @@
+.dd { --dd-line: color-mix(in srgb, currentColor 18%, transparent); --dd-dim: color-mix(in srgb, currentColor 60%, transparent); box-sizing: border-box; max-width: 72rem; margin: 0 auto; padding: 2rem 1.5rem 6rem; font: 14px/1.4 ui-sans-serif, system-ui, sans-serif; }
+.dd *, .dd *::before, .dd *::after { box-sizing: inherit; }
+.dd h1 { margin: 0 0 0.25rem; font-size: 1.75rem; font-weight: 600; }
+.dd h2 { margin: 3rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--dd-line); font-size: 1rem; font-weight: 600; font-family: ui-monospace, Menlo, monospace; }
+.dd .counts { margin: 0; color: var(--dd-dim); font-family: ui-monospace, Menlo, monospace; }
+.dd nav { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; margin-top: 1.25rem; font-family: ui-monospace, Menlo, monospace; }
+.dd nav a { color: inherit; opacity: 0.7; }
+.dd nav a:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.dd .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.75rem; }
+.dd .list { display: grid; gap: 0.5rem; }
+.dd .tile { display: grid; gap: 0.375rem; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+.dd .tile .name { overflow-wrap: anywhere; }
+.dd .tile .value { color: var(--dd-dim); overflow-wrap: anywhere; }
+.dd .swatch { height: 4rem; border: 1px solid var(--dd-line); border-radius: 4px; }
+.dd .row { display: grid; grid-template-columns: 12rem 1fr 16rem; align-items: center; gap: 1rem; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+.dd .row .value { color: var(--dd-dim); overflow-wrap: anywhere; }
+.dd .bar { height: 0.75rem; background: currentColor; opacity: 0.55; border-radius: 2px; max-width: 100%; }
+.dd .box { width: 3rem; height: 3rem; border: 1px solid currentColor; }
+.dd table { width: 100%; border-collapse: collapse; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+.dd th, .dd td { padding: 0.375rem 0.75rem 0.375rem 0; border-bottom: 1px solid var(--dd-line); text-align: left; vertical-align: top; }
+.dd th { color: var(--dd-dim); font-weight: 400; }
+.dd td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.dd td .chip { display: inline-block; width: 0.875rem; height: 0.875rem; margin-right: 0.5rem; vertical-align: -2px; border: 1px solid var(--dd-line); border-radius: 2px; }
+.dd .files { color: var(--dd-dim); overflow-wrap: anywhere; }
