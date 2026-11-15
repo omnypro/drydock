@@ -22,6 +22,17 @@
         "vite": "^8.3.0",
       },
     },
+    "packages/ledger": {
+      "name": "@drydock/ledger",
+      "dependencies": {
+        "@typescript/typescript6": "6.0.2",
+        "tinyglobby": "^0.2.0",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "~6.0.2",
+      },
+    },
     "packages/reader": {
       "name": "@drydock/reader",
       "dependencies": {
@@ -36,6 +47,8 @@
   },
   "packages": {
     "@drydock/catalog": ["@drydock/catalog@workspace:packages/catalog"],
+
+    "@drydock/ledger": ["@drydock/ledger@workspace:packages/ledger"],
 
     "@drydock/reader": ["@drydock/reader@workspace:packages/reader"],
 

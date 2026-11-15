@@ -1,0 +1,16 @@
+{
+  "name": "@drydock/ledger",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@typescript/typescript6": "6.0.2",
+    "tinyglobby": "^0.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "typescript": "~6.0.2"
+  }
+}
