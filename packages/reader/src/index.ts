@@ -1,3 +1,5 @@
+import fs from "node:fs"
+import path from "node:path"
 import { asyncCompiler } from "./async"
 import { bridgeCompiler } from "./bridge"
 import type { Compiler } from "./facts"
@@ -16,15 +18,31 @@ export type ReaderOptions = {
 }
 
 export type Reader = {
+  /**
+   * The props of the component `name` in `file`. It is `undefined` when the file declares no component of that name.
+   * It throws when the file is not part of the project.
+   */
   read(file: string, name: string): Promise<ComponentShape | undefined>
+  /** Makes the next `read` see the files as they are now. Call it after a file changes. */
+  refresh(): Promise<void>
   close(): Promise<void>
 }
 
+/** The path with symlinks resolved, which is the form the compilers name files by. */
+const real = (file: string) => (fs.existsSync(file) ? fs.realpathSync(file) : path.resolve(file))
+
 export async function openReader(options: ReaderOptions): Promise<Reader> {
   const compiler: Compiler = options.compiler === "bridge" ? bridgeCompiler() : asyncCompiler()
-  const project = await compiler.open(options.tsconfig)
+  let project
+  try {
+    project = await compiler.open(real(options.tsconfig))
+  } catch (error) {
+    await compiler.close()
+    throw error
+  }
   return {
-    read: (file, name) => readComponent(project, file, name, compiler.version),
+    read: (file, name) => readComponent(project, real(file), name, compiler.version),
+    refresh: () => project.refresh(),
     close: () => compiler.close(),
   }
 }

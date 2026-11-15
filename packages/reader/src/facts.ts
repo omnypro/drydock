@@ -17,10 +17,12 @@ export interface Compiler {
 }
 
 export interface Project {
+  /** Forgets what the compiler has read, so the next `component` call sees the files as they are now. */
+  refresh(): Promise<void>
   /**
-   * A component's props, or `undefined` when the file declares nothing of that name. A declaration with a function
-   * type is a component: a function, an arrow, an annotated `FC<Props>`, or `memo` and `forwardRef` around one.
-   * It throws when the name is declared and its type cannot be called.
+   * A component's props, or `undefined` when the file declares nothing of that name that can be called. A declaration
+   * with a function type is a component: a function, an arrow, an annotated `FC<Props>`, or `memo` and `forwardRef`
+   * around one. It throws when the file is not part of the project.
    */
   component(file: string, name: string): Promise<ComponentFacts | undefined>
 }
@@ -43,6 +45,8 @@ export interface TypeFacts {
   parts(): Promise<TypeFacts[]>
   /** `true` for `never` and for `undefined`, which a prop's value list leaves out. */
   isEmpty(): boolean
+  /** `true` for `null`, which a prop's value list leaves out and the prop's type keeps. */
+  isNull(): boolean
   /** The literal when the type is a string or boolean literal. */
   literal(): Promise<Literal | undefined>
   /** The type as written in an editor, with `| undefined` removed. */

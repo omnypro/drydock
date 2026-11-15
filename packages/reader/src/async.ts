@@ -74,12 +74,21 @@ export function asyncCompiler(): Compiler {
   return {
     version: `typescript ${version}`,
     async open(tsconfig) {
+      const fresh = !api
       api ??= new API()
       const config = path.resolve(tsconfig)
-      const snapshot = await api.createSnapshot({ openProjects: [config] })
-      const project = snapshot.getConfiguredProject(config)
-      if (!project) throw new Error(`The compiler did not open ${config}`)
-      return new AsyncProject(project)
+      try {
+        const project = new AsyncProject(api, config)
+        await project.refresh()
+        return project
+      } catch (error) {
+        // A failed open must not leave the compiler's child process running.
+        if (fresh) {
+          await api?.close()
+          api = undefined
+        }
+        throw error
+      }
     },
     async close() {
       await api?.close()
@@ -89,17 +98,28 @@ export function asyncCompiler(): Compiler {
 }
 
 class AsyncProject implements Project {
-  constructor(private project: TsProject) {}
+  private project: TsProject | undefined
+  constructor(
+    private api: API,
+    private config: string,
+  ) {}
+
+  async refresh(): Promise<void> {
+    const snapshot = await this.api.createSnapshot({ openProjects: [this.config] })
+    this.project = snapshot.getConfiguredProject(this.config)
+    if (!this.project) throw new Error(`The compiler did not open ${this.config}`)
+  }
 
   async component(file: string, name: string): Promise<ComponentFacts | undefined> {
-    const { checker, program } = this.project
+    const { checker, program } = this.project!
     const target = path.resolve(file)
     const sf = await program.getSourceFile(target)
-    const found = sf && locate(sf, name)
-    if (!sf || !found) return undefined
+    if (!sf) throw new Error(`${file} is not a file of ${this.config}`)
+    const found = locate(sf, name)
+    if (!found) return undefined
     const { identifier, fn } = found
     const signature = (await (await checker.getTypeAtLocation(identifier)).getCallSignatures())[0]
-    if (!signature) throw new Error(`${name} in ${file} is not callable, so it is not a component the reader can read`)
+    if (!signature) return undefined
     const first = (await signature.getParameters())[0]
     const param = fn?.parameters[0]
 
@@ -108,6 +128,7 @@ class AsyncProject implements Project {
       const facts: TypeFacts = {
         parts: async () => (type.isUnionType() ? ((await type.getTypes()) ?? []) : [type]).map(wrap),
         isEmpty: () => Boolean(type.flags & (TypeFlags.Undefined | TypeFlags.Never)),
+        isNull: () => Boolean(type.flags & TypeFlags.Null),
         literal: async () => {
           if (type.isStringLiteralType()) return type.value
           if (type.flags & TypeFlags.BooleanLiteral) return (await checker.typeToString(type)) === "true"

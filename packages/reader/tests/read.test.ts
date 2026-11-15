@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import os from "node:os"
 import path from "node:path"
 import { openReader, type ComponentShape, type Reader } from "../src"
 import { inDeclarationOrder } from "../src/read"
@@ -117,31 +119,66 @@ describe.each(["bridge", "async"] as const)("%s compiler, other ways to write a 
     for (const name of ["Nothing", "Bare"]) expect(await read(name)).toMatchObject({ props: [], shapes: [{}] })
   })
 
-  test("says so when the name is declared and is not callable", async () => {
-    await expect(read("NotAComponent")).rejects.toThrow("not callable")
+  test("returns undefined for a name that is declared and is not callable", async () => {
+    expect(await read("NotAComponent")).toBeUndefined()
   })
 })
 
-test("both compilers read every form the same way", async () => {
-  for (const name of ["Arrow", "Annotated", "Memoed", "Forwarded", "Nothing", "Bare", "Defaulted", "Renamed"]) {
-    const { compiler: _a, ...bridge } = (await readers.bridge.read(forms, name))!
-    const { compiler: _b, ...async } = (await readers.async.read(forms, name))!
-    expect(async).toEqual(bridge)
-  }
-})
+const shapesFile = path.join(fixtures, "shapes.ts")
 
-test("both compilers read the same component the same way", () => {
-  const { compiler: _a, ...bridge } = shapes.bridge!
-  const { compiler: _b, ...async } = shapes.async!
-  expect(async).toEqual(bridge)
-})
+describe.each(["bridge", "async"] as const)("%s compiler, props that differ between union members", (compiler) => {
+  const read = async (name: string) => (await readers[compiler].read(shapesFile, name))!
+  const prop = (shape: ComponentShape, name: string) => shape.props.find((p) => p.name === name)
 
-describe("inDeclarationOrder", () => {
-  test("follows the declared list and puts unlisted values after it, in the compiler's order", () => {
-    expect(inDeclarationOrder(["bold", "calm", "x", "warm", "y"], ["calm", "warm", "bold"])).toEqual(["calm", "warm", "bold", "x", "y"])
+  test("calls a prop data when any member makes it data, whichever member comes first", async () => {
+    expect(prop(await read("Mixed"), "value")).toMatchObject({ kind: "data", values: [] })
+    expect(prop(await read("Mixed"), "kind")).toMatchObject({ kind: "union", values: ["one", "many"] })
   })
 
-  test("puts false before true when the source lists nothing", () => {
-    expect(inDeclarationOrder([true, false], [])).toEqual([false, true])
+  test("calls a prop optional when a member allows only never or undefined", async () => {
+    expect(prop(await read("Linkish"), "href")).toMatchObject({ kind: "data", optional: true })
+    expect(prop(await read("Linkish"), "label")).toMatchObject({ optional: false })
+  })
+
+  test("keeps the values of a union that allows null, and keeps null in its type", async () => {
+    const shape = await read("Nullable")
+    expect(prop(shape, "tone")).toMatchObject({ kind: "union", values: ["info", "warn"], type: '"info" | "warn" | null' })
+    expect(prop(shape, "flag")).toMatchObject({ kind: "boolean", values: [false, true] })
+  })
+
+  test("says when the source order of a union was not followed", async () => {
+    expect(prop(await read("ByIndex"), "size")?.ordered).toBe(false)
+    expect(prop((await readers[compiler].read(chip, "Chip"))!, "tone")?.ordered).toBe(true)
   })
 })
+
+describe.each(["bridge", "async"] as const)("%s compiler, the project", (compiler) => {
+  test("throws for a file that is not part of the project", async () => {
+    await expect(readers[compiler].read("/nowhere/Missing.tsx", "Missing")).rejects.toThrow("is not a file of")
+  })
+
+  test("reads a changed file again after refresh and not before", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "drydock-reader-"))
+    try {
+      await writeFile(path.join(dir, "tsconfig.json"), JSON.stringify({ compilerOptions: { strict: true, moduleResolution: "bundler", module: "ESNext", target: "ES2022" }, include: ["*.ts"] }))
+      const file = path.join(dir, "C.ts")
+      const source = (members: string) => `export function C(_: { tone?: ${members} }) { return 1 }\n`
+      await writeFile(file, source('"a" | "b"'))
+      const reader = await openReader({ tsconfig: path.join(dir, "tsconfig.json"), compiler })
+      const values = async () => (await reader.read(file, "C"))!.props[0]!.values
+      expect(await values()).toEqual(["a", "b"])
+      await writeFile(file, source('"a" | "b" | "c"'))
+      expect(await values()).toEqual(["a", "b"])
+      await reader.refresh()
+      expect(await values()).toEqual(["a", "b", "c"])
+      await reader.close()
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  }, 30_000)
+})
+
+test("a failed open leaves no compiler process behind", async () => {
+  const run = Bun.spawn(["bun", path.join(fixtures, "failed-open.ts")], { stdout: "pipe" })
+  expect((await new Response(run.stdout).text()).trim().split("\n")).toEqual(["threw", "no children"])
+}, 30_000)

@@ -1,4 +1,5 @@
 import ts from "@typescript/typescript6"
+import fs from "node:fs"
 import path from "node:path"
 import type { Compiler, ComponentFacts, DefaultValue, Literal, Project, PropFacts, TypeFacts } from "./facts"
 import { isDefaultLibrary, isProjectFile } from "./library"
@@ -52,32 +53,42 @@ export function bridgeCompiler(): Compiler {
 }
 
 class BridgeProject implements Project {
-  private programs = new Map<string, ts.Program>()
+  private program: ts.Program | undefined
+  private roots: Set<string>
+  private options: ts.CompilerOptions
   constructor(
     private tsconfig: string,
-    private config: unknown,
-  ) {}
+    config: unknown,
+  ) {
+    const parsed = ts.parseJsonConfigFileContent(config, ts.sys, path.dirname(tsconfig), undefined, tsconfig)
+    this.options = parsed.options
+    this.roots = new Set(parsed.fileNames)
+  }
 
-  private program(file: string): ts.Program {
-    let program = this.programs.get(file)
-    if (!program) {
-      const parsed = ts.parseJsonConfigFileContent({ ...(this.config as object), include: [], files: [file] }, ts.sys, path.dirname(this.tsconfig))
-      program = ts.createProgram([file], parsed.options)
-      this.programs.set(file, program)
+  /** One program covers the project, so the compiler reads each file once. A file the config does not include is added to it. */
+  private programFor(file: string): ts.Program {
+    if (!this.program || !this.program.getSourceFile(file)) {
+      if (fs.existsSync(file)) this.roots.add(file)
+      this.program = ts.createProgram([...this.roots], this.options, undefined, this.program)
     }
-    return program
+    return this.program
+  }
+
+  async refresh(): Promise<void> {
+    this.program = undefined
   }
 
   async component(file: string, name: string): Promise<ComponentFacts | undefined> {
     const target = path.resolve(file)
-    const program = this.program(target)
+    const program = this.programFor(target)
     const checker = program.getTypeChecker()
     const sf = program.getSourceFile(target)
-    const found = sf && locate(sf, name)
-    if (!sf || !found) return undefined
+    if (!sf) throw new Error(`${file} is not a file of ${this.tsconfig}`)
+    const found = locate(sf, name)
+    if (!found) return undefined
     const { identifier, fn } = found
     const signature = checker.getTypeAtLocation(identifier).getCallSignatures()[0]
-    if (!signature) throw new Error(`${name} in ${file} is not callable, so it is not a component the reader can read`)
+    if (!signature) return undefined
     const first = signature.getParameters()[0]
     const param = fn?.parameters[0]
 
@@ -86,6 +97,7 @@ class BridgeProject implements Project {
       const facts: TypeFacts = {
         parts: async () => (type.isUnion() ? type.types : [type]).map(wrap),
         isEmpty: () => Boolean(type.flags & (ts.TypeFlags.Undefined | ts.TypeFlags.Never)),
+        isNull: () => Boolean(type.flags & ts.TypeFlags.Null),
         literal: async () => {
           if (type.isStringLiteral()) return type.value
           if (type.flags & ts.TypeFlags.BooleanLiteral) return checker.typeToString(type) === "true"

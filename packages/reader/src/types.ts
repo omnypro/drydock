@@ -10,6 +10,11 @@ export type PropShape = {
   doc: string
   /** Every literal the prop takes across all shapes, in declaration order. */
   values: Literal[]
+  /**
+   * Whether `values` follows the source. It is `false` when the source writes the union in a form the reader cannot
+   * follow (an indexed access into an interface, `keyof typeof`, a template literal), and the order is the compiler's.
+   */
+  ordered: boolean
 }
 
 export type ComponentShape = {
