@@ -11,6 +11,8 @@ export type Token = {
   group: string
   /** The stylesheet the token is declared in, from the project root. */
   file: string
+  /** What the token applies under, such as `@media (prefers-color-scheme: dark)`. Absent for a token that always applies. */
+  condition?: string
 }
 
 export type RawKind = "color" | "length" | "duration" | "easing"
@@ -31,4 +33,6 @@ export type TokensData = {
   raw: RawValue[]
   /** How many stylesheets the raw scan read. */
   scanned: number
+  /** Files the scan could not read or parse, so the rest still report. */
+  unreadable: { file: string; message: string }[]
 }

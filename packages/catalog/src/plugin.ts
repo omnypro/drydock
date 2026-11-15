@@ -74,7 +74,10 @@ export function drydockPlugin(project: ResolvedProject): Plugin {
             const html = await server.transformIndexHtml(ROUTE, page())
             res.end(html.replace("</body>", `    <script type="module" src="${CLIENT_URL}"></script>\n  </body>`))
           } else if (url === CLIENT_URL) {
-            client ??= buildClient()
+            client ??= buildClient().catch((error: unknown) => {
+              client = undefined
+              throw error
+            })
             res.setHeader("Content-Type", "text/javascript")
             res.end(await client)
           } else if (url === DATA_URL) {
@@ -88,14 +91,40 @@ export function drydockPlugin(project: ResolvedProject): Plugin {
       })
 
       let queued: ReturnType<typeof setTimeout> | undefined
-      void tokenSources(project).then(({ tokenFiles, scanFiles }) => {
-        const watched = new Set([...tokenFiles, ...scanFiles])
+      let closed = false
+      let watched = new Set<string>()
+      /** Re-reads which files the page covers, so a stylesheet added or removed later is followed too. */
+      const refresh = async () => {
+        const { tokenFiles, scanFiles } = await tokenSources(project)
+        watched = new Set([...tokenFiles, ...scanFiles])
         server.watcher.add([...watched])
+      }
+      const send = () => {
+        clearTimeout(queued)
+        queued = setTimeout(async () => {
+          if (closed) return
+          try {
+            server.hot.send(TOKENS_EVENT, await collectTokens(project))
+          } catch (error) {
+            server.config.logger.warn(`drydock: ${error instanceof Error ? error.message : String(error)}`)
+          }
+        }, 30)
+      }
+      void refresh().then(() => {
         server.watcher.on("change", (file) => {
-          if (!watched.has(file)) return
-          clearTimeout(queued)
-          queued = setTimeout(async () => server.hot.send(TOKENS_EVENT, await collectTokens(project)), 30)
+          if (watched.has(file)) send()
         })
+        for (const event of ["add", "unlink"] as const) {
+          server.watcher.on(event, async (file) => {
+            const known = watched.has(file)
+            await refresh()
+            if (known || watched.has(file)) send()
+          })
+        }
+      })
+      server.httpServer?.on("close", () => {
+        closed = true
+        clearTimeout(queued)
       })
     },
   }

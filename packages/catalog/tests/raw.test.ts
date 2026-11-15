@@ -67,6 +67,55 @@ describe("canonical", () => {
   test("puts px and rem on one scale", () => {
     expect(canonical("16px")).toBe("1rem")
     expect(canonical("0.50rem")).toBe("0.5rem")
-    expect(canonical(" #ABC ")).toBe("#abc")
+    expect(canonical(" #ABC ")).toBe("#aabbcc")
+  })
+})
+
+describe("what a suggested token has to fit", () => {
+  const tokens = readTokens([
+    {
+      file: "tokens.css",
+      css: `:root { --radius-md: 0.5rem; --space-2: 0.5rem; --text-14: 0.875rem; --color-white: #ffffff; --color-shadow: rgba(0, 0, 0, 0.35); --duration-fast: 0.1s; }`,
+    },
+  ])
+  const raw = scanRaw(
+    [{ file: "a.module.css", css: `.a { padding: 8px; border-radius: 8px; font-size: 14px; color: white; background: #fff; box-shadow: 0 0 1px rgba(0,0,0,.35); transition-duration: 100ms; }` }],
+    tokens,
+  )
+  const get = (value: string) => raw.find((r) => r.value === value)
+
+  test("suggests a radius token for a radius and a space token for padding, from the same value", () => {
+    expect(get("8px")?.properties).toEqual(["padding", "border-radius"])
+    expect(get("8px")?.token).toBe("--space-2")
+  })
+
+  test("suggests a text token for a font size", () => {
+    expect(get("14px")?.token).toBe("--text-14")
+  })
+
+  test("suggests nothing when the only token of that value is another kind", () => {
+    const other = scanRaw([{ file: "a.module.css", css: `.a { border-radius: 8px }` }], readTokens([{ file: "t.css", css: `:root { --space-2: 0.5rem }` }]))
+    expect(other[0]?.token).toBeUndefined()
+  })
+
+  test("counts one color once however it is spelled, and finds named colors", () => {
+    expect(raw.filter((r) => r.kind === "color" && r.token === "--color-white").map((r) => r.count)).toEqual([2])
+    expect(get("rgba(0,0,0,.35)")?.token).toBe("--color-shadow")
+  })
+
+  test("puts 100ms and 0.1s together", () => {
+    expect(get("100ms")?.token).toBe("--duration-fast")
+  })
+})
+
+describe("canonical colors", () => {
+  test("expands short hex and drops a full alpha", () => {
+    expect(canonical("#fff")).toBe("#ffffff")
+    expect(canonical("#FFFFFFFF")).toBe("#ffffff")
+    expect(canonical("white")).toBe("#ffffff")
+  })
+
+  test("ignores spacing and a missing leading zero in a color function", () => {
+    expect(canonical("rgba(0, 0, 0, .35)")).toBe(canonical("rgba(0,0,0,0.35)"))
   })
 })

@@ -96,9 +96,11 @@ function render(data: TokensData): HTMLElement {
 }
 
 const root = document.getElementById("root")!
-const mount = (data: TokensData) => root.replaceChildren(render(data))
+// A token that applies only under a condition (a dark block) is not drawn yet. The page shows the base values.
+const mount = (data: TokensData) => root.replaceChildren(render({ ...data, tokens: data.tokens.filter((token) => !token.condition) }))
 
 document.head.append(h("style", {}, css))
-mount((await (await fetch("/drydock/tokens.json")).json()) as TokensData)
-
 createHotContext("/drydock/client.js").on("drydock:tokens", (data: TokensData) => mount(data))
+
+const response = await fetch("/drydock/tokens.json")
+if (response.ok) mount((await response.json()) as TokensData)

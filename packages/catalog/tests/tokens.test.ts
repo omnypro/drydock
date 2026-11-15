@@ -49,3 +49,51 @@ describe("readTokens", () => {
     expect(get("--space-2")?.group).toBe("space")
   })
 })
+
+describe("where tokens are declared", () => {
+  const read = (source: string) => readTokens([{ file: "t.css", css: source }])
+
+  test("reads `html`, `:host`, a selector list with `:root`, and Tailwind's `@theme`", () => {
+    const tokens = read(`html { --a: 1px } :host { --b: 2px } :root, :host { --c: 3px } @theme { --d: 4px } @layer base { :root { --e: 5px } }`)
+    expect(tokens.map((t) => t.name)).toEqual(["--a", "--b", "--c", "--d", "--e"])
+    expect(tokens.every((t) => !t.condition)).toBe(true)
+  })
+
+  test("keeps a dark block apart, with its condition, and resolves its aliases inside it first", () => {
+    const tokens = read(`
+      :root { --bg: #fff; --fg: var(--bg); --edge: #ccc }
+      @media (prefers-color-scheme: dark) { :root { --bg: #000 } }
+      :root[data-theme="dark"] { --bg: #111; --edge: var(--bg) }
+    `)
+    const named = (name: string) => tokens.filter((t) => t.name === name).map((t) => ({ condition: t.condition, resolved: t.resolved }))
+    expect(named("--bg")).toEqual([
+      { condition: undefined, resolved: "#fff" },
+      { condition: "@media (prefers-color-scheme: dark)", resolved: "#000" },
+      { condition: ':root[data-theme="dark"]', resolved: "#111" },
+    ])
+    expect(named("--fg")).toEqual([{ condition: undefined, resolved: "#fff" }])
+    expect(named("--edge")[1]).toEqual({ condition: ':root[data-theme="dark"]', resolved: "#111" })
+  })
+
+  test("ignores custom properties on other selectors, in keyframes and in nested rules", () => {
+    const tokens = read(`.card { --x: 1px } @keyframes k { from { --y: 1px } } :root { .inner { --z: 1px } }`)
+    expect(tokens).toEqual([])
+  })
+})
+
+describe("var() fallbacks", () => {
+  const resolved = (source: string, name: string) => readTokens([{ file: "t.css", css: `:root { ${source} }` }]).find((t) => t.name === name)?.resolved
+
+  test("uses a fallback that holds parentheses and nested var()", () => {
+    expect(resolved("--c: 1px; --d: var(--c, var(--e, 2px))", "--d")).toBe("1px")
+    expect(resolved("--d: var(--missing, var(--e, rgb(0 0 0)))", "--d")).toBe("rgb(0 0 0)")
+  })
+
+  test("uses the fallback when the token is not declared", () => {
+    expect(resolved("--d: var(--missing, 4px)", "--d")).toBe("4px")
+  })
+
+  test("leaves a loop as written instead of expanding it", () => {
+    expect(resolved("--a: var(--b) var(--b); --b: var(--a) var(--a)", "--a")).toBe("var(--a) var(--a) var(--a) var(--a)")
+  })
+})
