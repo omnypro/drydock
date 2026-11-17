@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { ComponentShape, PropShape } from "@drydock/reader"
 import { grid, MAX_CELLS } from "../src/generate/grid"
+import { allCases } from "../src/generate/cases"
 import { sweep } from "../src/generate/sweep"
 import { isValid, withValue } from "../src/generate/valid"
 
@@ -120,5 +121,23 @@ describe("sweep", () => {
   test("lists the skipped props with the reason that was written, and the optional props of the component itself that have no value", () => {
     expect(result.skipped).toEqual([{ prop: "title", reason: "native attribute" }])
     expect(sweep(chip, sample, {}).unset).toEqual(["onPick"])
+  })
+})
+
+describe("allCases", () => {
+  const list = allCases(chip, {
+    sample: { shape: "soft", label: "Tag" },
+    owed: { disabled: { waived: "a chip cannot be disabled" }, long: { width: 120, render: "long" } },
+    more: { plain: "plain" },
+  })
+
+  test("lists the sample, every grid cell, every sweep row, then the cases the file writes", () => {
+    const count = (section: string) => list.filter((item) => item.section === section).length
+    expect([count("sample"), count("grid"), count("sweep"), count("owed"), count("more")]).toEqual([1, 54, 14, 1, 1])
+  })
+
+  test("labels a grid cell with its look and its column, and leaves out a waived case", () => {
+    expect(list[1]).toEqual({ section: "grid", label: "shape: soft · tone: calm · density: compact · scale: tight", props: { shape: "soft", label: "Tag", tone: "calm", density: "compact", scale: "tight" } })
+    expect(list.filter((item) => item.section === "owed").map((item) => [item.label, item.width])).toEqual([["long", 120]])
   })
 })

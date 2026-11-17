@@ -1,5 +1,6 @@
 export { catalogViteConfig, PAGE_ENTRIES } from "./host"
 export { defineProject } from "./project"
+export { startCatalog, type RunningCatalog } from "./server"
 export type { ProjectConfig, ResolvedProject } from "./project"
 export { collectTokens } from "./tokens/collect"
 export type { RawValue, Token, TokensData } from "./tokens/types"
