@@ -127,6 +127,13 @@ export function componentService(project: ResolvedProject) {
       ledger = undefined
       for (const reader of readers.values()) void reader.then((r) => r.refresh())
     },
+    /** The same, and resolves once every reader has caught up, for a caller that reads right after. */
+    async refresh() {
+      ledger = undefined
+      await Promise.all([...readers.values()].map(async (reader) => (await reader).refresh()))
+    },
+    /** The whole ledger, as the import scan last read it. */
+    ledger: current,
     async close() {
       await Promise.all([...readers.values()].map(async (reader) => (await reader).close()))
       readers.clear()
