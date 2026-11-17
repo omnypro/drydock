@@ -30,10 +30,11 @@ beforeAll(async () => {
   base = server.resolvedUrls!.local[0]!.replace(/\/$/, "")
 })
 
+// Closing a Vite server now and then takes about five seconds, which is Bun's default for a hook.
 afterAll(async () => {
   await server.close()
   await rm(root, { recursive: true, force: true })
-})
+}, 15_000)
 
 test("serves the tokens and the raw values", async () => {
   const body = await data()

@@ -1,7 +1,7 @@
 import fs from "node:fs"
 import path from "node:path"
 import { deriveLedger } from "@drydock/ledger"
-import type { ResolvedProject } from "@drydock/catalog"
+import { ledgerConfig, type ResolvedProject } from "@drydock/catalog"
 
 /** One component that has a cases file, with what the checks need to draw it. */
 export type CheckItem = {
@@ -36,7 +36,7 @@ const casesFileOf = (file: string) => path.join(path.dirname(file), `${path.base
 /** Lists the components that have a cases file, grouped by the test setup that each one runs in. `only` limits it to these ids. */
 export function planChecks(project: ResolvedProject, only?: string[]): Plan {
   if (!project.components) return { groups: [], unplaced: [] }
-  const ledger = deriveLedger({ root: project.root, ...project.components.ledger })
+  const ledger = deriveLedger(ledgerConfig(project))
   const groups = new Map<string, CheckItem[]>()
   const unplaced: Plan["unplaced"] = []
   for (const component of ledger.components) {

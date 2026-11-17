@@ -12,6 +12,7 @@
       "name": "@drydock/catalog",
       "dependencies": {
         "@drydock/ledger": "workspace:*",
+        "@drydock/marks": "workspace:*",
         "@drydock/reader": "workspace:*",
         "postcss": "^8.5.33",
         "postcss-value-parser": "^4.2.0",
@@ -58,6 +59,17 @@
         "typescript": "~6.0.2",
       },
     },
+    "packages/marks": {
+      "name": "@drydock/marks",
+      "dependencies": {
+        "@drydock/ledger": "workspace:*",
+        "@typescript/typescript6": "6.0.2",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.4.2",
+        "typescript": "~6.0.2",
+      },
+    },
     "packages/reader": {
       "name": "@drydock/reader",
       "dependencies": {
@@ -76,6 +88,8 @@
     "@drydock/checks": ["@drydock/checks@workspace:packages/checks"],
 
     "@drydock/ledger": ["@drydock/ledger@workspace:packages/ledger"],
+
+    "@drydock/marks": ["@drydock/marks@workspace:packages/marks"],
 
     "@drydock/reader": ["@drydock/reader@workspace:packages/reader"],
 

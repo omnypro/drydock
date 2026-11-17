@@ -22,7 +22,7 @@ beforeAll(async () => {
     path.join(root, "app/src/ui/Tag.tsx"),
     `/** A small tag. */\nexport function Tag({ tone = "calm", label }: { /** The mood. */ tone?: "calm" | "warm"; label: string }) {\n  return <b>{tone}{label}</b>\n}\n`,
   )
-  await writeFile(path.join(root, "app/src/ui/Tag.cases.tsx"), `export default { sample: { label: "x" } }\n`)
+  await writeFile(path.join(root, "app/src/ui/Tag.cases.tsx"), `import { Tag } from "./Tag"\n\nexport default { sample: { label: "x" }, more: { warm: <Tag tone="warm" label="x" /> } }\n`)
   const config = await catalogViteConfig(
     {
       root,
@@ -40,14 +40,15 @@ beforeAll(async () => {
   base = server.resolvedUrls!.local[0]!.replace(/\/$/, "")
 })
 
+// Closing a Vite server now and then takes about five seconds, which is Bun's default for a hook.
 afterAll(async () => {
   await server.close()
   await rm(root, { recursive: true, force: true })
-})
+}, 15_000)
 
 test("lists the components the ledger finds", async () => {
   const index = await json<ComponentIndex>("/drydock/components.json")
-  expect(index.components).toEqual([{ id: "app/src/ui/Tag.tsx", name: "Tag", filed: "app/src/ui", level: 0, apps: ["app"], inShowcase: false, kind: "react" }])
+  expect(index.components).toEqual([{ id: "app/src/ui/Tag.tsx", name: "Tag", filed: "app/src/ui", level: 0, apps: ["app"], inShowcase: true, kind: "react" }])
 })
 
 test("serves a component's ledger entry, the shape the reader reads, and the cases file beside it", async () => {
@@ -58,6 +59,12 @@ test("serves a component's ledger entry, the shape the reader reads, and the cas
     ["tone", "union", ["calm", "warm"]],
     ["label", "data", []],
   ])
+}, 30_000)
+
+test("counts a cases file as a place that shows the component, and not as one that uses it", async () => {
+  const { component } = await json<ComponentPage>("/drydock/component.json?file=app/src/ui/Tag.tsx")
+  expect(component.referencedBy).toEqual([])
+  expect(component.shownIn).toEqual(["app/src/ui/Tag.cases.tsx"])
 }, 30_000)
 
 test("answers the page for a component the ledger lists, with its module beside the component", async () => {

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@drydock/ledger": "workspace:*",
+    "@drydock/marks": "workspace:*",
     "@drydock/reader": "workspace:*",
     "postcss": "^8.5.33",
     "postcss-value-parser": "^4.2.0",

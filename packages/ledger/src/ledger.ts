@@ -62,6 +62,14 @@ function components(nodes: string[], edges: (node: string) => Iterable<string>):
   return groups
 }
 
+/** The files the ledger reads: the TypeScript and Astro files under the source folders, without build output or declaration files. */
+export function sourceFiles(root: string, source: string[]): string[] {
+  return globSync(
+    source.map((dir) => `${dir.replace(/\/$/, "")}/**/*.{ts,tsx,astro}`),
+    { cwd: root, absolute: true, dot: true, ignore: [...IGNORED, "**/*.d.ts"] },
+  ).sort()
+}
+
 /**
  * Follows a project's imports, declaration by declaration and through index files, and records for each component
  * file what it is built from, what uses it, how deep it sits, and whether an app or a showcase reaches it.
@@ -76,10 +84,7 @@ export function deriveLedger(config: LedgerConfig): Ledger {
   const appFrom = config.appFrom ?? /^apps\/([^/]+)\//
   const appOf = (file: string) => appFrom.exec(rel(file))?.[1] ?? "app"
 
-  const files = globSync(
-    config.source.map((dir) => `${dir.replace(/\/$/, "")}/**/*.{ts,tsx,astro}`),
-    { cwd: root, absolute: true, dot: true, ignore: [...IGNORED, "**/*.d.ts"] },
-  ).sort()
+  const files = sourceFiles(root, config.source)
   const fileSet = new Set(files)
   const resolve = createResolver(root, fileSet)
 

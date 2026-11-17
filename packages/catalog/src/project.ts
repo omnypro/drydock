@@ -16,6 +16,8 @@ export type ProjectConfig = {
     ledger: Omit<LedgerConfig, "root">
     /** The `tsconfig.json` the reader opens for a component, from the project root. It defaults to the nearest one above the component's file. */
     tsconfig?: string
+    /** The marks file, from the project root. Its default export is a list of `parked` and `replaces` marks. */
+    marks?: string
   }
 }
 
@@ -26,4 +28,13 @@ export type ResolvedProject = ProjectConfig & {
 
 export function defineProject(config: ProjectConfig): ProjectConfig {
   return config
+}
+
+/** Cases files draw components apart from the app, as stories do, so none of them counts as a place that uses a component. */
+const CASES_FILE = /\.cases\.tsx$/
+
+/** What the ledger reads for a project with component pages. */
+export function ledgerConfig(project: ResolvedProject): LedgerConfig {
+  const ledger = project.components!.ledger
+  return { root: project.root, ...ledger, showcases: [...(ledger.showcases ?? []), CASES_FILE] }
 }
