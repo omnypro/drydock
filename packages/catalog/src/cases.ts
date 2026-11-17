@@ -7,8 +7,11 @@ export const skip = (reason: string): Skip => ({ skip: reason })
 /** An owed state this component cannot have, with the reason. */
 export type Waived = { waived: string }
 
-/** One drawn state. Give a width to draw it in a box that narrow. */
-export type Case = ReactElement | { width: number; render: ReactElement }
+/**
+ * One drawn state. Give a width to draw it in a box that narrow, or name one of `windows` to draw it as a page: a
+ * document of its own at that size, so the page's media queries and anything it sets up while it renders stay inside.
+ */
+export type Case = ReactElement | { width: number; render: ReactElement } | { window: string; render: ReactElement }
 
 /** The hand-written file beside a component, `X.cases.tsx`. Everything else on the component's page is read from its types. */
 export interface Cases<C extends ElementType> {
@@ -20,6 +23,8 @@ export interface Cases<C extends ElementType> {
   widths?: readonly number[]
   /** A height for a component that fills its parent. */
   height?: number
+  /** The windows a page is drawn in, by name, as `[width, height]`: `{ beside: [1280, 800] }`. */
+  windows?: Record<string, readonly [number, number]>
   /** The states this component is expected to show, each drawn or waived with a reason. */
   owed?: Record<string, Case | Waived>
   /** Any other named cases. */

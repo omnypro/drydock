@@ -140,4 +140,16 @@ describe("allCases", () => {
     expect(list[1]).toEqual({ section: "grid", label: "shape: soft · tone: calm · density: compact · scale: tight", props: { shape: "soft", label: "Tag", tone: "calm", density: "compact", scale: "tight" } })
     expect(list.filter((item) => item.section === "owed").map((item) => [item.label, item.width])).toEqual([["long", 120]])
   })
+
+  test("draws a window case's element, with the window's size, and keeps a window the file does not list", () => {
+    const pages = allCases(chip, {
+      sample: { shape: "soft", label: "Tag" },
+      windows: { beside: [1280, 800] },
+      more: { wide: { window: "beside", render: "page" }, lost: { window: "under", render: "other" } },
+    }).filter((item) => item.section === "more")
+    expect(pages).toEqual([
+      { section: "more", label: "wide", element: "page", window: { name: "beside", size: [1280, 800] } },
+      { section: "more", label: "lost", element: "other", window: { name: "under" } },
+    ])
+  })
 })

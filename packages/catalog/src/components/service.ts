@@ -18,8 +18,13 @@ export type ComponentPage = {
   casesFile: string | null
   /** The marks that name this component, as the new one, the old one or a parked one. */
   marks: MarkState[]
+  /** New components that this component's cases file draws and that a mark says replace another, with the part of each to swap. */
+  swaps: Swap[]
   error?: string
 }
+
+/** A new component and the old one it replaces, by file, with the export of each that a page swaps. */
+export type Swap = { newId: string; oldId: string; part: string; oldPart: string }
 
 export type ComponentIndex = { components: Pick<LedgerComponent, "id" | "name" | "filed" | "level" | "apps" | "inShowcase" | "kind">[]; unresolved: number }
 
@@ -100,6 +105,20 @@ export function componentService(project: ResolvedProject) {
     return { file: read.file, exists: read.exists, problems: read.problems, marks: read.marks.map((mark) => markState(mark, current())) }
   }
   const replacing = (id: string) => marks().marks.filter((m): m is Handover["mark"] => m.mark === "replaces" && m.component === id)
+  /** The old part is the one of the same name, when the old file has it, so a file of several parts pairs them up. */
+  const oldPartFor = (old: LedgerComponent, part: string) => (old.parts.includes(part) ? part : old.parts[0]!)
+  const swapsFor = (id: string): Swap[] => {
+    const component = listed(id)
+    const cases = component && casesFor(component)
+    if (!cases) return []
+    return marks().marks.flatMap((mark) => {
+      if (mark.mark !== "replaces") return []
+      const neu = listed(mark.component)
+      const old = listed(mark.replaces)
+      if (!neu || !old || !neu.shownIn.includes(cases)) return []
+      return [{ newId: neu.id, oldId: old.id, part: neu.parts[0]!, oldPart: oldPartFor(old, neu.parts[0]!) }]
+    })
+  }
 
   return {
     enabled: Boolean(settings),
@@ -121,13 +140,14 @@ export function componentService(project: ResolvedProject) {
     listed,
     /** The old components that a component replaces, among those the ledger lists. */
     replacedBy: (id: string) => replacing(id).flatMap((m) => listed(m.replaces) ?? []),
+    swapsFor,
     async page(id: string, part?: string): Promise<ComponentPage | undefined> {
       const component = listed(id)
       if (!component) return undefined
       const chosen = part && component.parts.includes(part) ? part : component.parts[0]!
       const { shape, error } = await shapeOf(component, chosen)
       const named = marks().marks.filter((m) => m.component === id || (m.mark === "replaces" && m.replaces === id))
-      return { component, part: chosen, parts: component.parts, shape, casesFile: casesFor(component), marks: named, ...(error ? { error } : {}) }
+      return { component, part: chosen, parts: component.parts, shape, casesFile: casesFor(component), marks: named, swaps: swapsFor(id), ...(error ? { error } : {}) }
     },
     /** The handover of a component marked as replacing another. `replaces` picks the old one when the component replaces several. */
     async handover(id: string, part?: string, replaces?: string): Promise<Handover | undefined> {
@@ -137,8 +157,7 @@ export function componentService(project: ResolvedProject) {
       if (!component || !mark) return undefined
       const chosen = part && component.parts.includes(part) ? part : component.parts[0]!
       const old = listed(mark.replaces) ?? null
-      // The old part is the one of the same name, when the old file has it, so a file of several parts pairs them up.
-      const oldPart = old ? (old.parts.includes(chosen) ? chosen : old.parts[0]!) : null
+      const oldPart = old ? oldPartFor(old, chosen) : null
       const [neu, before] = await Promise.all([shapeOf(component, chosen), old && oldPart ? shapeOf(old, oldPart) : Promise.resolve({ shape: null })])
       const errors = [neu.error, "error" in before ? before.error : undefined].filter((e): e is string => Boolean(e))
       return {

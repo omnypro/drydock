@@ -37,7 +37,7 @@ describe("the checks that need no browser", () => {
   }, 120_000)
 
   test("draws every case of every planned component", () => {
-    expect(run.output).toContain("src/Good.tsx: 6 cases drawn and audited")
+    expect(run.output).toContain("src/Good.tsx: 7 cases drawn and audited")
     expect(run.output).toContain("src/Unlabeled.tsx: 5 cases drawn and audited")
   })
 
@@ -77,11 +77,15 @@ describe("visible keyboard focus", () => {
   }, 180_000)
 
   test("passes an element whose look changes when the keyboard focuses it", () => {
-    expect(results.get("src/Good.tsx")).toMatchObject({ checked: 6, invisible: [], unreached: [] })
+    expect(results.get("src/Good.tsx")).toMatchObject({ checked: 7, invisible: [], unreached: [] })
   })
 
   test("fails an element that takes away its ring and puts nothing in its place", () => {
-    expect(results.get("src/Ringless.tsx")).toMatchObject({ checked: 2, invisible: ["sample: Go", "grid: Go"] })
+    expect(results.get("src/Ringless.tsx")).toMatchObject({ checked: 3, invisible: ["sample: Go", "grid: Go", "window: In a window: Go"] })
+  })
+
+  test("checks a window case in a page of its own at the window's size", () => {
+    expect(results.get("src/Good.tsx")?.checked).toBe(7)
   })
 
   test("works from the app's folder while the catalog runs, and returns to its own after", () => {

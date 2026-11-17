@@ -13,13 +13,25 @@ export type CaseItem = {
   element?: unknown
   /** The width the case is drawn at, when the cases file gives one. */
   width?: number
+  /** The window a page case is drawn in. `size` is missing when the cases file names a window that `windows` does not list. */
+  window?: { name: string; size?: readonly [number, number] }
 }
 
 /** What the checks need from a cases file. */
-export type CasesInput = { sample: Props; each?: Props; owed?: Record<string, unknown>; more?: Record<string, unknown> }
+export type CasesInput = { sample: Props; each?: Props; owed?: Record<string, unknown>; more?: Record<string, unknown>; windows?: Record<string, readonly [number, number]> }
 
 const isWaived = (value: unknown) => typeof value === "object" && value !== null && "waived" in value
-const withWidth = (value: unknown): value is { width: number; render: unknown } => typeof value === "object" && value !== null && "width" in value && "render" in value
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null
+
+/** One named case as it is drawn: the element, and the width or window the cases file gives it. */
+export function readCase(value: unknown, windows: CasesInput["windows"] = {}): Pick<CaseItem, "element" | "width" | "window"> {
+  if (isObject(value) && "render" in value && typeof value.window === "string") {
+    const size = windows[value.window]
+    return { element: value.render, window: { name: value.window, ...(size ? { size } : {}) } }
+  }
+  if (isObject(value) && "render" in value && typeof value.width === "number") return { element: value.render, width: value.width }
+  return { element: value }
+}
 
 /** Every case a component's page draws: the sample, each grid cell, each sweep row, and the owed and extra cases that are not waived. */
 export function allCases(shape: ComponentShape, cases: CasesInput): CaseItem[] {
@@ -36,7 +48,7 @@ export function allCases(shape: ComponentShape, cases: CasesInput): CaseItem[] {
   for (const section of ["owed", "more"] as const) {
     for (const [label, value] of Object.entries(cases[section] ?? {})) {
       if (isWaived(value)) continue
-      out.push(withWidth(value) ? { section, label, element: value.render, width: value.width } : { section, label, element: value })
+      out.push({ section, label, ...readCase(value, cases.windows) })
     }
   }
   return out

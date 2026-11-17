@@ -54,6 +54,12 @@ describe("the handover, served", () => {
     await writeFile(path.join(root, "app/src/ui/OldTag.tsx"), `export function OldTag({ tone, label, loud }: { tone?: "calm" | "warm"; label: string; loud?: boolean }) {\n  return <i>{tone}{label}{String(loud)}</i>\n}\n`)
     await writeFile(path.join(root, "app/src/ui/NewTag.tsx"), `export function NewTag({ mood, label }: { mood?: "calm" | "warm"; label: string }) {\n  return <b>{mood}{label}</b>\n}\n`)
     await writeFile(path.join(root, "app/src/ui/NewTag.cases.tsx"), `export default { sample: { label: "x" } }\n`)
+    // A page that holds the new component in a slot, drawn in a window.
+    await writeFile(path.join(root, "app/src/ui/Frame.tsx"), `export function Frame({ slot }: { slot?: unknown }) {\n  return <main>{slot as never}</main>\n}\n`)
+    await writeFile(
+      path.join(root, "app/src/ui/Frame.cases.tsx"),
+      `import { Frame } from "./Frame"\nimport { NewTag } from "./NewTag"\n\nexport default { sample: {}, windows: { wide: [1280, 800] }, more: { page: { window: "wide", render: <Frame slot={<NewTag label="x" />} /> } } }\n`,
+    )
     // Build output inside a source folder, as `src-tauri/target` is inside `apps/desktop`.
     await mkdir(path.join(root, "app/target/debug"), { recursive: true })
     await writeFile(path.join(root, "app/target/debug/build.rs"), "fn main() {}\n")
@@ -140,6 +146,28 @@ describe("the handover, served", () => {
     const watched = Object.keys(server.watcher.getWatched())
     expect(watched).toContain(path.join(root, "app/src"))
     expect(watched).not.toContain(path.join(root, "app/target"))
+  })
+
+  test("lists the marked new components that a page's cases file draws, with the parts to swap", async () => {
+    const frame = await json<ComponentPage>("/drydock/component.json?file=app/src/ui/Frame.tsx")
+    expect(frame.swaps).toEqual([{ newId: "app/src/ui/NewTag.tsx", oldId: "app/src/ui/OldTag.tsx", part: "NewTag", oldPart: "OldTag" }])
+    expect((await json<ComponentPage>("/drydock/component.json?file=app/src/ui/NewTag.tsx")).swaps).toEqual([])
+  }, 30_000)
+
+  test("gives the page module the new and the old component of each swap", async () => {
+    const module = await (await get(`/@fs${path.join(root, "app/src/ui/__drydock__Frame.tsx")}`)).text()
+    expect(module).toContain("NewTag.tsx")
+    expect(module).toContain("OldTag.tsx")
+    expect(module).toContain("news:")
+  })
+
+  test("draws a page case in a window of its own, and only for a component with a cases file", async () => {
+    const html = await (await get(`/drydock/window?${new URLSearchParams({ file: "app/src/ui/Frame.tsx", case: "more/<page>" })}`)).text()
+    expect(html).toContain("__drydock__Frame.tsx")
+    expect(html).toContain("/drydock/window.js")
+    expect(html).toContain("<title>Frame more/&#60;page&#62;</title>")
+    expect(await (await get("/drydock/window?file=app/src/ui/OldTag.tsx&case=more/x")).text()).not.toContain("/drydock/window.js")
+    expect(await (await get("/drydock/window.js")).text()).toContain("has no")
   })
 
   test("follows an edit to the marks file, and the handover goes when its mark does", async () => {

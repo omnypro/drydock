@@ -17,6 +17,7 @@ const TOKENS_ROUTE = "/drydock/tokens"
 const COMPONENTS_ROUTE = "/drydock/components"
 const COMPONENT_ROUTE = "/drydock/component"
 const HANDOVER_ROUTE = "/drydock/handover"
+const WINDOW_ROUTE = "/drydock/window"
 const DATA_URL = "/drydock/tokens.json"
 const MARKS_URL = "/drydock/marks.json"
 
@@ -24,6 +25,7 @@ const MARKS_URL = "/drydock/marks.json"
 const SCRIPTS: Record<string, string> = {
   "/drydock/client.js": "client/tokens.ts",
   "/drydock/page.js": "client/page.ts",
+  "/drydock/window.js": "client/window.ts",
 }
 
 export const TOKENS_EVENT = "drydock:tokens"
@@ -58,7 +60,7 @@ function shell(title: string, scripts: string[] = []): string {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${title}</title>
+    <title>${title.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`)}</title>
     <script type="module" src="/@id/__x00__${STYLES_ID}"></script>
 ${scripts.map((src) => `    <script type="module" src="${src}"></script>`).join("\n")}
   </head>
@@ -121,15 +123,21 @@ export function drydockPlugin(project: ResolvedProject): Plugin {
       const page = componentOf(id)
       if (!page) return undefined
       const absolute = path.join(project.root, page.component.id)
-      const olds = page.handover ? components.replacedBy(page.component.id) : []
+      // A handover page draws the old components that this one replaces. A component page draws the marked new
+      // components its cases file holds, and the old ones that a window can put in their place.
+      const swaps = page.handover ? [] : components.swapsFor(page.component.id)
+      const olds = [...new Set(page.handover ? components.replacedBy(page.component.id).map((c) => c.id) : swaps.map((s) => s.oldId))]
+      const news = [...new Set(swaps.map((s) => s.newId))]
+      const importAll = (ids: string[], as: string) => ids.map((id, at) => `import * as ${as}${at} from ${JSON.stringify(`/@fs${path.join(project.root, id)}`)}`)
+      const table = (ids: string[], as: string) => `{ ${ids.map((id, at) => `${JSON.stringify(id)}: ${as}${at}`).join(", ")} }`
       return [
         `import * as React from "react"`,
         `import { createRoot } from "react-dom/client"`,
         `import * as Module from ${JSON.stringify(`/@fs${absolute}`)}`,
         casesImport(absolute),
-        ...olds.map((old, at) => `import * as Old${at} from ${JSON.stringify(`/@fs${path.join(project.root, old.id)}`)}`),
-        `const old = { ${olds.map((old, at) => `${JSON.stringify(old.id)}: Old${at}`).join(", ")} }`,
-        `window.__drydock = { React, createRoot, Module, cases: Cases.default, old }`,
+        ...importAll(olds, "Old"),
+        ...importAll(news, "New"),
+        `window.__drydock = { React, createRoot, Module, cases: Cases.default, old: ${table(olds, "Old")}, news: ${table(news, "New")} }`,
         "",
       ].join("\n")
     },
@@ -176,6 +184,12 @@ export function drydockPlugin(project: ResolvedProject): Plugin {
             const page = await components.page(url.searchParams.get("file") ?? "", url.searchParams.get("part") ?? undefined)
             if (!page) return next()
             reply(res, "application/json", JSON.stringify(page))
+          } else if (components.enabled && route === WINDOW_ROUTE) {
+            // One page case in a document of its own. The component page frames it at the window's size.
+            const id = url.searchParams.get("file") ?? ""
+            const component = components.listed(id)
+            if (!component || !fs.existsSync(path.join(project.root, path.dirname(id), `${baseName(id)}.cases.tsx`))) return next()
+            reply(res, "text/html", await html(WINDOW_ROUTE, `${baseName(id)} ${url.searchParams.get("case") ?? ""}`, [`/@fs${pageModuleFor(path.join(project.root, id))}`], "/drydock/window.js"))
           } else if (components.enabled && route === MARKS_URL) {
             reply(res, "application/json", JSON.stringify(components.marks()))
           } else if (components.enabled && route === HANDOVER_ROUTE) {

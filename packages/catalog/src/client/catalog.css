@@ -37,6 +37,11 @@
 .dd.page td.dim, .dd.page .dim { color: var(--dd-dim); }
 .dd.page details { margin-top: 0.75rem; }
 .dd.page details table { margin-top: 0.5rem; }
-.dd.page .cases { display: grid; gap: 1.5rem; }
+.dd.page .cases { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
 .dd.page .case h3 { margin: 0 0 0.5rem; font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--dd-dim); font-weight: 400; }
 .dd.page table.index td a { color: inherit; }
+.dd.page .win { margin: 0; min-width: 0; }
+.dd.page .win figcaption { margin-bottom: 0.5rem; }
+.dd.page .window { width: 100%; overflow: hidden; border: 1px solid var(--dd-line); }
+.dd.page .window iframe { display: block; border: 0; transform-origin: 0 0; }
+.dd.page .pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }

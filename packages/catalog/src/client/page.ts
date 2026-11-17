@@ -3,46 +3,12 @@ import { h, type Child } from "./dom"
 import { grid } from "../generate/grid"
 import { sweep } from "../generate/sweep"
 import { compose, type Props } from "../generate/valid"
-import { allCases, type CasesInput } from "../generate/cases"
-import type { Cases } from "../cases"
-import type { PropRow } from "../components/handover"
+import { allCases, readCase, type CasesInput } from "../generate/cases"
 import type { ComponentIndex, ComponentPage, Handover, MarksView } from "../components/service"
+import { boundary, type Runtime } from "./runtime"
+import { forOld, holds, withOld } from "./swap"
 import type { MarkState } from "@drydock/marks"
 import type { PropShape } from "@drydock/reader"
-
-/** The parts of React the page uses. The project's own copy is passed in, so a case draws with the React the project runs. */
-type ReactLike = {
-  createElement(type: unknown, props?: unknown, ...children: unknown[]): unknown
-  isValidElement(value: unknown): boolean
-  Component: new (props: unknown) => { props: { children?: unknown }; state: { error: Error | null }; setState(state: unknown): void }
-}
-
-type Runtime = {
-  React: ReactLike
-  createRoot(host: Element): { render(element: unknown): void }
-  Module: Record<string, unknown>
-  cases?: Cases<never> & Record<string, unknown>
-  /** On a handover page: the module of each old component the new one replaces, by its file. */
-  old?: Record<string, Record<string, unknown>>
-}
-
-declare global {
-  interface Window {
-    __drydock?: Runtime
-  }
-}
-
-function boundary(React: ReactLike) {
-  return class extends React.Component {
-    state: { error: Error | null } = { error: null }
-    static getDerivedStateFromError(error: Error) {
-      return { error }
-    }
-    render() {
-      return this.state.error ? React.createElement("pre", { className: "error" }, String(this.state.error.message)) : this.props.children
-    }
-  }
-}
 
 let Boundary: ReturnType<typeof boundary> | undefined
 
@@ -94,8 +60,22 @@ function propsSection(page: ComponentPage): HTMLElement {
   )
 }
 
-function isCaseWithWidth(value: unknown): value is { width: number; render: unknown } {
-  return typeof value === "object" && value !== null && "width" in value && "render" in value
+/** A page case drawn in a document of its own at the window's size, scaled down to fit the column. */
+function windowFigure(src: string, title: string, size: readonly [number, number] | undefined, caption: string): HTMLElement {
+  if (!size) return h("p", { class: "m dim" }, `${caption}: the cases file lists no window of that name in windows`)
+  const [width, height] = size
+  const frame = h("iframe", { src, title, loading: "lazy", "data-dd-window": src, "data-dd-size": `${width}x${height}`, style: `width: ${width}px; height: ${height}px` })
+  const box = h("div", { class: "window" }, frame)
+  const label = h("figcaption", { class: "m dim" }, `${caption} · ${width} × ${height}`)
+  const fit = () => {
+    const scale = Math.min(1, box.clientWidth / width)
+    frame.style.transform = `scale(${scale})`
+    box.style.height = `${Math.ceil(height * scale)}px`
+    label.textContent = `${caption} · ${width} × ${height}${scale < 1 ? ` · drawn at ${Math.round(scale * 100)}%` : ""}`
+  }
+  // The next frame sets the height, so the change does not land inside the observer's own callback and loop it.
+  new ResizeObserver(() => requestAnimationFrame(fit)).observe(box)
+  return h("figure", { class: "win" }, label, box)
 }
 
 function casesSection(runtime: Runtime, page: ComponentPage, Component: unknown): HTMLElement[] {
@@ -161,14 +141,42 @@ function casesSection(runtime: Runtime, page: ComponentPage, Component: unknown)
     ),
   )
 
-  const named = (entries: Record<string, unknown> | undefined) =>
+  const params = new URLSearchParams(location.search)
+  const compare = params.get("compare")
+  const linkWith = (change: (next: URLSearchParams) => void) => {
+    const next = new URLSearchParams(params)
+    change(next)
+    return `?${next}`
+  }
+  const windowSrc = (section: string, label: string, swap?: ComponentPage["swaps"][number]) =>
+    `/drydock/window?${new URLSearchParams({ file: page.component.id, case: `${section}/${label}`, ...(swap ? { new: swap.newId, old: swap.oldId } : {}) })}`
+  const named = (section: "owed" | "more", entries: Record<string, unknown> | undefined) =>
     Object.entries(entries ?? {}).map(([name, value]) => {
       if (typeof value === "object" && value !== null && "waived" in value) return h("div", { class: "case" }, h("h3", {}, name), h("p", { class: "m dim" }, `waived: ${(value as { waived: string }).waived}`))
-      const element = isCaseWithWidth(value) ? value.render : value
-      return h("div", { class: "case" }, h("h3", {}, name), draw(runtime, element, isCaseWithWidth(value) ? `width: ${value.width}px` : ""))
+      const drawn = readCase(value, (cases as unknown as CasesInput).windows)
+      if (!drawn.window) return h("div", { class: "case" }, h("h3", {}, name), draw(runtime, drawn.element, drawn.width ? `width: ${drawn.width}px` : ""))
+      const { name: windowName, size } = drawn.window
+      // A marked new component in the page is drawn as written. The old one goes in its place only when asked for, beside it.
+      const here = page.swaps.filter((swap) => holds(React, drawn.element, runtime.news?.[swap.newId]?.[swap.part]))
+      const compared = here.find((swap) => swap.oldId === compare)
+      const written = windowFigure(windowSrc(section, name), name, size, windowName)
+      const body = compared
+        ? h("div", { class: "pair" }, written, windowFigure(windowSrc(section, name, compared), `${name}, with ${compared.oldPart}`, size, `${windowName}, with ${compared.oldPart} in place of ${compared.part}`))
+        : written
+      const lines = here.map((swap) =>
+        h(
+          "p",
+          { class: "m meta" },
+          `${swap.part} replaces ${swap.oldPart} · `,
+          swap === compared ? h("a", { href: linkWith((next) => next.delete("compare")) }, "as written") : h("a", { href: linkWith((next) => next.set("compare", swap.oldId)) }, "compare"),
+          " · ",
+          h("a", { href: `/drydock/handover?${new URLSearchParams({ file: swap.newId, replaces: swap.oldId })}` }, "handover"),
+        ),
+      )
+      return h("div", { class: "case" }, h("h3", {}, name), body, ...lines)
     })
-  const owed = named(cases.owed)
-  const more = named(cases.more)
+  const owed = named("owed", cases.owed)
+  const more = named("more", cases.more)
   if (owed.length) out.push(h("section", { id: "owed" }, h("h2", {}, "Owed"), h("div", { class: "cases" }, ...owed)))
   if (more.length) out.push(h("section", { id: "more" }, h("h2", {}, "More"), h("div", { class: "cases" }, ...more)))
   return out
@@ -201,42 +209,6 @@ function markLines(page: ComponentPage): Child[] {
       ? h("p", { class: "m meta" }, "replaces ", markRef(mark, mark.replaces), " · ", link)
       : h("p", { class: "m meta" }, "replaced by ", markRef(mark, mark.component), " · ", link)
   })
-}
-
-/** The props for the old component: renamed props under their old names, and none of the props that only the new one takes. */
-function forOld(props: Props, rows: PropRow[]): Props {
-  const was = new Map(rows.filter((r) => r.status === "renamed").map((r) => [r.name, r.was!]))
-  const onlyNew = new Set(rows.filter((r) => r.status === "new").map((r) => r.name))
-  return Object.fromEntries(Object.entries(props).flatMap(([name, value]) => (onlyNew.has(name) ? [] : [[was.get(name) ?? name, value]])))
-}
-
-type DrawnElement = { type: unknown; key: string | null; props: Record<string, unknown> }
-
-/** The case's element with the old component in each place the new one is, or `undefined` when the element tree does not hold the new one. */
-function withOld(React: ReactLike, element: unknown, New: unknown, Old: unknown, rows: PropRow[]): unknown {
-  let swapped = false
-  const rebuild = (node: unknown): unknown => {
-    if (Array.isArray(node)) {
-      const mapped = node.map(rebuild)
-      return mapped.some((m, at) => m !== node[at]) ? mapped : node
-    }
-    if (!React.isValidElement(node)) return node
-    const { type, key, props } = node as DrawnElement
-    const children = props.children === undefined ? undefined : rebuild(props.children)
-    const next = { ...props, ...(children === undefined ? {} : { children }), ...(key === null ? {} : { key }) }
-    if (type === New) {
-      swapped = true
-      return make(Old, forOld(next as Props, rows))
-    }
-    return children === props.children ? node : make(type, next)
-  }
-  // Children that JSX wrote side by side go back in as separate arguments. Passed as one array they would read as a list that needs keys.
-  const make = (type: unknown, props: Record<string, unknown>) => {
-    const { children, ...rest } = props
-    return Array.isArray(children) ? React.createElement(type, rest, ...(children as unknown[])) : React.createElement(type, props)
-  }
-  const result = rebuild(element)
-  return swapped ? result : undefined
 }
 
 function handoverCases(runtime: Runtime, handover: Handover, New: unknown, Old: unknown): HTMLElement {
