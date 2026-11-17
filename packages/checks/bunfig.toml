@@ -1,0 +1,3 @@
+# The runner in runner/ is started by path inside a project's own test setup. Drydock's own tests are only in tests/.
+[test]
+root = "tests"

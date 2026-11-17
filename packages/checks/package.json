@@ -1,0 +1,24 @@
+{
+  "name": "@drydock/checks",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@drydock/catalog": "workspace:*",
+    "@drydock/ledger": "workspace:*",
+    "@drydock/reader": "workspace:*",
+    "axe-core": "4.14.0",
+    "playwright-core": "1.64.1"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.14.5",
+    "@types/bun": "^1.4.2",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "react": "19.2.5",
+    "react-dom": "19.2.5",
+    "typescript": "~6.0.2"
+  }
+}
