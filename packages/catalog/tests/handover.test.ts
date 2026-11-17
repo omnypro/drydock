@@ -74,7 +74,8 @@ describe("the handover, served", () => {
         components: { ledger: { source: ["app"], entries: [/^app\/src\/main\.tsx$/] }, marks: "marks.ts" },
       },
       { command: "serve", mode: "development" },
-      { server: { port: 0, host: "127.0.0.1" }, logLevel: "silent" },
+      // The fsevents package sends nothing on some Macs. Vite's watcher then falls back to fs.watch, so this test does not depend on it.
+      { server: { port: 0, host: "127.0.0.1", watch: { useFsEvents: false } }, logLevel: "silent" },
     )
     server = await createServer(config)
     await server.listen()
@@ -169,6 +170,24 @@ describe("the handover, served", () => {
     expect(await (await get("/drydock/window?file=app/src/ui/OldTag.tsx&case=more/x")).text()).not.toContain("/drydock/window.js")
     expect(await (await get("/drydock/window.js")).text()).toContain("has no")
   })
+
+  test("counts down when a file outside the app's Vite folder stops rendering the old component", async () => {
+    const page = path.join(root, "app/src/ui/Page.tsx")
+    const left = async () => (await json<MarksView>("/drydock/marks.json")).marks[0]?.remaining.length
+    const until = async (want: number) => {
+      let now = await left()
+      for (let tries = 0; now !== want && tries < 50; tries++) {
+        await Bun.sleep(100)
+        now = await left()
+      }
+      return now
+    }
+    expect(await left()).toBe(1)
+    await writeFile(page, `import { NewTag } from "./NewTag"\nexport function Page() {\n  return <NewTag label="x" />\n}\n`)
+    expect(await until(0)).toBe(0)
+    await writeFile(page, `import { OldTag } from "./OldTag"\nexport function Page() {\n  return <OldTag label="x" />\n}\n`)
+    expect(await until(1)).toBe(1)
+  }, 30_000)
 
   test("follows an edit to the marks file, and the handover goes when its mark does", async () => {
     await marks(`export default [{ mark: "parked", component: "app/src/ui/NewTag.tsx", reason: 1 }]\n`)
