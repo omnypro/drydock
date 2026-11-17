@@ -1,3 +1,3 @@
 export function createHotContext(ownerPath: string): {
-  on(event: string, listener: (data: any) => void): void
+  on<T>(event: string, listener: (data: T) => void): void
 }

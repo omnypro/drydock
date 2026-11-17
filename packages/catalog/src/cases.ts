@@ -1,4 +1,4 @@
-import type { ComponentProps, JSXElementConstructor, ReactElement } from "react"
+import type { ComponentProps, ElementType, ReactElement } from "react"
 
 /** A prop the sweep leaves alone, with the reason. The reason is written by the person who skips it. */
 export type Skip = { skip: string }
@@ -11,7 +11,7 @@ export type Waived = { waived: string }
 export type Case = ReactElement | { width: number; render: ReactElement }
 
 /** The hand-written file beside a component, `X.cases.tsx`. Everything else on the component's page is read from its types. */
-export interface Cases<C extends JSXElementConstructor<any>> {
+export interface Cases<C extends ElementType> {
   /** The plainest valid props. The grid and the sweep start from it. */
   sample: ComponentProps<C>
   /** A value for each optional prop, so the sweep can turn it on. A prop can be skipped with `skip(reason)`. */
