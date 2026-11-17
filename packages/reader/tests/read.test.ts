@@ -186,3 +186,27 @@ test("a failed open leaves no compiler process behind", async () => {
   const run = Bun.spawn(["bun", path.join(fixtures, "failed-open.ts")], { stdout: "pipe" })
   expect((await new Response(run.stdout).text()).trim().split("\n")).toEqual(["threw", "no children"])
 }, 30_000)
+
+test("both compilers read every form the same way", async () => {
+  for (const name of ["Arrow", "Annotated", "Memoed", "Forwarded", "Nothing", "Bare", "Defaulted", "Renamed"]) {
+    const { compiler: _a, ...bridge } = (await readers.bridge.read(forms, name))!
+    const { compiler: _b, ...async } = (await readers.async.read(forms, name))!
+    expect(async).toEqual(bridge)
+  }
+})
+
+test("both compilers read the same component the same way", () => {
+  const { compiler: _a, ...bridge } = shapes.bridge!
+  const { compiler: _b, ...async } = shapes.async!
+  expect(async).toEqual(bridge)
+})
+
+describe("inDeclarationOrder", () => {
+  test("follows the declared list and puts unlisted values after it, in the compiler's order", () => {
+    expect(inDeclarationOrder(["bold", "calm", "x", "warm", "y"], ["calm", "warm", "bold"])).toEqual(["calm", "warm", "bold", "x", "y"])
+  })
+
+  test("puts false before true when the source lists nothing", () => {
+    expect(inDeclarationOrder([true, false], [])).toEqual([false, true])
+  })
+})
