@@ -5,6 +5,7 @@ import fs from "node:fs"
 import { allCases, type CaseItem, type CasesInput } from "@drydock/catalog/generate"
 import { openReader, type Reader } from "@drydock/reader"
 import type { CheckGroup } from "../src/plan"
+import { AXE_OPTIONS } from "../src/axe"
 
 const planFile = process.env.DRYDOCK_CHECK_PLAN
 const group = planFile ? (JSON.parse(fs.readFileSync(planFile, "utf8")) as CheckGroup) : undefined
@@ -18,9 +19,6 @@ Bun.plugin({
   },
 })
 
-/** Rules about a whole page misfire on one component, and contrast needs layout that happy-dom does not have. */
-const PAGE_RULES = ["color-contrast", "region", "landmark-one-main", "page-has-heading-one", "bypass", "landmark-unique"]
-const AXE_OPTIONS = { rules: Object.fromEntries(PAGE_RULES.map((id) => [id, { enabled: false }])) }
 
 type Result = { label: string; error?: string; violations: string[] }
 

@@ -85,11 +85,12 @@ async function checkWindow(browser: Browser, base: string, window: Window): Prom
  * nothing focused, then reached with Tab and pictured again. An element whose two pictures are the same has no visible focus.
  * A window case is checked in a page of its own at the window's size, since the component page draws it in a frame.
  */
-export async function checkFocus(browser: Browser, base: string, item: CheckItem): Promise<FocusResult> {
+export async function checkFocus(browser: Browser, base: string, item: Pick<CheckItem, "id">): Promise<FocusResult> {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 }, colorScheme: "dark", reducedMotion: "reduce" })
   try {
     await page.goto(`${base}/drydock/component?${new URLSearchParams({ file: item.id })}`)
-    await page.locator("#sample .stage").first().waitFor({ timeout: 60_000 })
+    // Any drawn case: an Astro page has no sample when its cases file leaves one out.
+    await page.locator(".stage").first().waitFor({ timeout: 60_000 })
     await page.waitForLoadState("networkidle")
     const labels = await page.evaluate((selector) => {
       const out: string[] = []
