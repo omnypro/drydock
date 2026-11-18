@@ -5,4 +5,10 @@ interface Props {
 const { label } = Astro.props
 ---
 
-<button type="button">{label}</button>
+<button type="button" class="good">{label}</button>
+
+<style>
+  .good {
+    padding: 4px 8px;
+  }
+</style>

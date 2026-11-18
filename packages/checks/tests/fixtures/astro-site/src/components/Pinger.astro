@@ -1,0 +1,11 @@
+---
+interface Props {
+  label: string
+}
+const { label } = Astro.props
+---
+
+<button type="button" data-pinger>{label}</button>
+<script>
+  for (const button of document.querySelectorAll("[data-pinger]")) button.addEventListener("click", () => button.setAttribute("aria-pressed", "true"))
+</script>

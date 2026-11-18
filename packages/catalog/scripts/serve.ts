@@ -14,3 +14,9 @@ const catalog = await startCatalog({ ...config, root }, { port: Number(portArg ?
 console.log(`catalog: ${catalog.url}`)
 console.log(`tokens page: ${catalog.url}/drydock/tokens`)
 console.log(`components: ${catalog.url}/drydock/components`)
+// Closing removes what the catalog keeps in the temp folder for this run.
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(signal, () => {
+    void catalog.close().finally(() => process.exit(0))
+  })
+}

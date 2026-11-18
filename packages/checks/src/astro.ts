@@ -39,7 +39,15 @@ export async function runAstroChecks(project: ResolvedProject, items: { id: stri
   }
 
   let passed = true
-  GlobalRegistrator.register()
+  // The built pages are read as documents: their scripts and stylesheets are not loaded, and frames do not navigate.
+  GlobalRegistrator.register({
+    settings: {
+      disableJavaScriptFileLoading: true,
+      disableCSSFileLoading: true,
+      handleDisabledFileLoadingAsSuccess: true,
+      navigation: { disableChildFrameNavigation: true, disableChildPageNavigation: true, disableMainFrameNavigation: true, disableFallbackToSetURL: true },
+    },
+  })
   try {
     // axe reads the window when it loads, so it loads after happy-dom is in place.
     const axe = (await import("axe-core")).default
@@ -66,6 +74,7 @@ export async function runAstroChecks(project: ResolvedProject, items: { id: stri
     }
   } finally {
     await GlobalRegistrator.unregister()
+    built.remove()
   }
   return done(passed)
 }

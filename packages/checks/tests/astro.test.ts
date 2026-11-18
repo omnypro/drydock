@@ -15,7 +15,7 @@ const site = (name: string): ResolvedProject => ({
 const project = site("astro-site")
 
 test("lists the .astro components that have a cases file", () => {
-  expect(planAstro(project).map((c) => c.id)).toEqual(["src/components/Good.astro", "src/components/Ringless.astro", "src/components/Unlabeled.astro"])
+  expect(planAstro(project).map((c) => c.id)).toEqual(["src/components/Good.astro", "src/components/Pinger.astro", "src/components/Ringless.astro", "src/components/Unlabeled.astro"])
 })
 
 describe("the checks that need no browser", () => {
@@ -27,6 +27,8 @@ describe("the checks that need no browser", () => {
   test("builds and audits every case of every component", () => {
     expect(run.output).toContain("src/components/Good.astro: 2 cases built and audited")
     expect(run.output).toContain("src/components/Ringless.astro: 1 cases built and audited")
+    // Its built page carries a module script, which the audit reads past without loading.
+    expect(run.output).toContain("src/components/Pinger.astro: 1 cases built and audited")
   })
 
   test("fails when a case has no accessible name, and names the case and the rule, and fails nothing else", () => {

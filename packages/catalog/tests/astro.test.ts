@@ -61,6 +61,14 @@ describe("the catalog on an Astro site", () => {
     expect(written()).toEqual([])
   })
 
+  test("builds while the dev catalog runs, each in a folder of its own", async () => {
+    const built = await buildAstroCatalog(project)
+    expect(built.pages).toHaveLength(2)
+    built.remove()
+    expect(fs.existsSync(built.outDir)).toBe(false)
+    expect((await get("/drydock/astro/src/components/Badge.astro")).status).toBe(200)
+  }, 120_000)
+
   test("gives an .astro component no page module for the browser", async () => {
     const module = await (await get(`/@fs${path.join(project.root, "src/components/__drydock__Badge.tsx")}`)).text()
     expect(module).not.toContain("window.__drydock")
@@ -72,6 +80,7 @@ describe("the static build of an Astro site's catalog", () => {
     const built = await buildAstroCatalog(project)
     expect(built.pages.map((p) => p.id)).toEqual(["src/components/Badge.astro", "src/components/Box.astro"])
     expect(fs.readFileSync(built.pages[0]!.file, "utf8")).toContain('data-tone="warm"')
+    built.remove()
     expect(written()).toEqual([])
   }, 120_000)
 
