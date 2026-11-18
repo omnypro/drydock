@@ -1,8 +1,10 @@
+import fs from "node:fs"
+import path from "node:path"
 import type { LedgerConfig } from "@drydock/ledger"
 
 /** What Drydock needs to know about one project. Paths are from the project root unless noted. */
 export type ProjectConfig = {
-  /** The app's own Vite config. The catalog loads it so pages compile the way the app does. */
+  /** The app's own Vite config, or its Astro config for an Astro site. The catalog loads it so pages compile the way the app does. */
   appConfig: string
   /** The stylesheets that declare tokens. */
   tokens: string[]
@@ -31,7 +33,20 @@ export function defineProject(config: ProjectConfig): ProjectConfig {
 }
 
 /** Cases files draw components apart from the app, as stories do, so none of them counts as a place that uses a component. */
-const CASES_FILE = /\.cases\.tsx$/
+const CASES_FILE = /\.cases\.tsx?$/
+
+/** Whether the project is an Astro site, which the catalog serves through Astro's own dev server. */
+export const isAstro = (project: ProjectConfig) => /(^|[\\/])astro\.config\.(m?[jt]s)$/.test(project.appConfig)
+
+/**
+ * The cases file beside a component, or `null` when there is none: `X.cases.tsx`, or `X.cases.ts`, which an `.astro`
+ * component's cases are written in since they are props and not JSX.
+ */
+export function casesFileFor(file: string): string | null {
+  const base = path.join(path.dirname(file), path.basename(file).replace(/\.\w+$/, ""))
+  for (const extension of [".cases.tsx", ".cases.ts"]) if (fs.existsSync(base + extension)) return base + extension
+  return null
+}
 
 /** What the ledger reads for a project with component pages. */
 export function ledgerConfig(project: ResolvedProject): LedgerConfig {

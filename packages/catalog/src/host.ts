@@ -30,7 +30,7 @@ export async function catalogViteConfig(project: ResolvedProject, env: ConfigEnv
   // The cases files import every component a page draws, so scanning them finds the dependencies before the first page
   // asks. Without them Vite finds a dependency while a page loads, re-bundles, and answers the page's requests with 504.
   const root = merged.root as string
-  const cases = (project.components?.ledger.source ?? []).map((dir) => `${path.relative(root, path.resolve(project.root, dir)).split(path.sep).join("/")}/**/*.cases.tsx`)
+  const cases = (project.components?.ledger.source ?? []).map((dir) => `${path.relative(root, path.resolve(project.root, dir)).split(path.sep).join("/")}/**/*.cases.{ts,tsx}`)
   // The catalog's own page modules import these, and no cases file names them. A project with no component pages has no page modules.
   const pageDeps = project.components ? ["react", "react-dom/client", "react/jsx-dev-runtime"] : []
   const include = [...new Set([...(merged.optimizeDeps?.include ?? []), ...pageDeps])]

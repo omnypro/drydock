@@ -86,3 +86,10 @@ test("builds the page script", async () => {
   expect(script).toContain("Components")
   expect(script).not.toContain("/@vite/client\"")
 })
+
+test("counts both kinds of cases file as showcases, and nothing else", async () => {
+  const { ledgerConfig } = await import("../src/project")
+  const showcases = ledgerConfig({ root, appConfig: "", tokens: [], styles: [], rawValues: [], components: { ledger: { source: [], entries: [] } } }).showcases ?? []
+  const shows = (file: string) => showcases.some((pattern) => pattern.test(file))
+  expect([shows("src/ui/Tag.cases.tsx"), shows("src/ui/footer.cases.ts"), shows("src/ui/Tag.tsx"), shows("src/ui/cases.ts")]).toEqual([true, true, false, false])
+})

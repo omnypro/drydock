@@ -1,0 +1,8 @@
+---
+import Badge from "../components/Badge.astro"
+import Box from "../components/Box.astro"
+// The site's own pages never run in the catalog. If this one did, it would fail the page and the build.
+throw new Error("The catalog ran a page of the site")
+---
+
+<Box><Badge label="x" /></Box>

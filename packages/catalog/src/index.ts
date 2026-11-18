@@ -1,5 +1,5 @@
 export { catalogViteConfig, PAGE_ENTRIES } from "./host"
-export { defineProject, ledgerConfig } from "./project"
+export { casesFileFor, defineProject, isAstro, ledgerConfig } from "./project"
 export { startCatalog, type RunningCatalog } from "./server"
 export type { ProjectConfig, ResolvedProject } from "./project"
 export { collectTokens } from "./tokens/collect"

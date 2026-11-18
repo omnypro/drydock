@@ -1,9 +1,11 @@
 import path from "node:path"
 import { createServer, type ViteDevServer } from "vite"
+import { startAstroCatalog } from "./astro/host"
 import { catalogViteConfig } from "./host"
-import type { ResolvedProject } from "./project"
+import { isAstro, type ResolvedProject } from "./project"
 
-export type RunningCatalog = { url: string; server: ViteDevServer; close(): Promise<void> }
+/** A running catalog. `server` is the Vite server, which an Astro site's catalog runs inside Astro and does not hand out. */
+export type RunningCatalog = { url: string; server?: ViteDevServer; close(): Promise<void> }
 
 /**
  * Starts the catalog on the project's own Vite setup. Port 0 takes any free port.
@@ -14,6 +16,16 @@ export async function startCatalog(project: ResolvedProject, { port = 0, host = 
   const previous = process.cwd()
   process.chdir(path.dirname(path.resolve(project.root, project.appConfig)))
   try {
+    if (isAstro(project)) {
+      const astro = await startAstroCatalog(project, { port, host })
+      return {
+        url: astro.url,
+        async close() {
+          await astro.close()
+          process.chdir(previous)
+        },
+      }
+    }
     const config = await catalogViteConfig(project, { command: "serve", mode: "development" })
     const server = await createServer({ ...config, logLevel: config.logLevel ?? "warn", server: { ...config.server, port, host, strictPort } })
     await server.listen()

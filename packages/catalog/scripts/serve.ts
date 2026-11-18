@@ -11,6 +11,6 @@ if (!rootArg) {
 const root = path.resolve(rootArg)
 const config = (await import(path.resolve(configArg ?? path.join(root, "drydock.config.ts")))).default as ProjectConfig
 const catalog = await startCatalog({ ...config, root }, { port: Number(portArg ?? 6100), host: "localhost", strictPort: true })
-catalog.server.printUrls()
+console.log(`catalog: ${catalog.url}`)
 console.log(`tokens page: ${catalog.url}/drydock/tokens`)
 console.log(`components: ${catalog.url}/drydock/components`)

@@ -27,5 +27,8 @@
     "src",
     "scripts",
     "tests"
+  ],
+  "exclude": [
+    "tests/fixtures"
   ]
 }

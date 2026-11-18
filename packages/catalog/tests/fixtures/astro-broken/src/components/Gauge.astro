@@ -1,0 +1,9 @@
+---
+interface Props {
+  value: number
+}
+const { value } = Astro.props
+if (value > 100) throw new Error(`A gauge cannot show ${value}`)
+---
+
+<meter min="0" max="100" value={value}>{value}</meter>

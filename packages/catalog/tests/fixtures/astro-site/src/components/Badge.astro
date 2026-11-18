@@ -1,0 +1,9 @@
+---
+interface Props {
+  label: string
+  tone?: "calm" | "warm"
+}
+const { label, tone = "calm" } = Astro.props
+---
+
+<span class="badge" data-tone={tone}>{label}</span>

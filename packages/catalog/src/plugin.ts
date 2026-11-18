@@ -1,10 +1,9 @@
-import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { sourceFiles } from "@drydock/ledger"
 import { build, type Plugin } from "vite"
-import { componentService } from "./components/service"
-import type { ResolvedProject } from "./project"
+import { componentService, type ComponentService } from "./components/service"
+import { casesFileFor, type ResolvedProject } from "./project"
 import { collectTokens, tokenSources } from "./tokens/collect"
 
 const SRC = path.dirname(fileURLToPath(import.meta.url))
@@ -18,6 +17,8 @@ const COMPONENTS_ROUTE = "/drydock/components"
 const COMPONENT_ROUTE = "/drydock/component"
 const HANDOVER_ROUTE = "/drydock/handover"
 const WINDOW_ROUTE = "/drydock/window"
+/** Where the Astro host draws an `.astro` component's cases. */
+export const ASTRO_ROUTE = "/drydock/astro"
 const DATA_URL = "/drydock/tokens.json"
 const MARKS_URL = "/drydock/marks.json"
 
@@ -85,12 +86,12 @@ const baseName = (file: string) => path.basename(file).replace(/\.\w+$/, "")
 const pageModuleFor = (file: string) => path.join(path.dirname(file), `__drydock__${baseName(file)}.tsx`)
 const handoverModuleFor = (file: string) => path.join(path.dirname(file), `__drydock_handover__${baseName(file)}.tsx`)
 const casesImport = (file: string) => {
-  const cases = path.join(path.dirname(file), `${baseName(file)}.cases.tsx`)
-  return fs.existsSync(cases) ? `import * as Cases from ${JSON.stringify(`/@fs${cases}`)}` : `const Cases = {}`
+  const cases = casesFileFor(file)
+  return cases ? `import * as Cases from ${JSON.stringify(`/@fs${cases}`)}` : `const Cases = {}`
 }
 
-export function drydockPlugin(project: ResolvedProject): Plugin {
-  const components = componentService(project)
+/** The catalog's routes and page modules on a project's dev server. A host that has its own use for the component service passes it in. */
+export function drydockPlugin(project: ResolvedProject, components: ComponentService = componentService(project)): Plugin {
   /**
    * The ledger component that a page module name stands for, and whether it is a handover page. Only a component the
    * ledger lists is ever imported, and a handover page only for a component marked as replacing another.
@@ -101,7 +102,8 @@ export function drydockPlugin(project: ResolvedProject): Plugin {
     const match = handover ?? PAGE_MODULE.exec(file)
     if (!match) return undefined
     const [, dir, name] = match
-    const component = components.index().components.find((c) => path.join(project.root, c.filed) === dir && baseName(c.id) === name)
+    // Only a React component gets a page module: an `.astro` one is drawn by Astro on the server, never in the browser.
+    const component = components.index().components.find((c) => c.kind === "react" && path.join(project.root, c.filed) === dir && baseName(c.id) === name)
     if (!component) return undefined
     if (handover && !components.marks().marks.some((m) => m.mark === "replaces" && m.component === component.id)) return undefined
     return { component, handover: Boolean(handover) }
@@ -177,8 +179,14 @@ export function drydockPlugin(project: ResolvedProject): Plugin {
             reply(res, "application/json", JSON.stringify(components.index()))
           } else if (components.enabled && route === COMPONENT_ROUTE) {
             const id = url.searchParams.get("file") ?? ""
-            const known = components.index().components.some((c) => c.id === id)
-            if (!known) return next()
+            const component = components.listed(id)
+            if (!component) return next()
+            if (component.kind === "astro") {
+              // Astro draws an `.astro` component's cases on its own page, which the Astro host adds.
+              res.statusCode = 302
+              res.setHeader("Location", `${ASTRO_ROUTE}/${id}`)
+              return res.end()
+            }
             reply(res, "text/html", await html(COMPONENT_ROUTE, path.basename(id), [`/@fs${pageModuleFor(path.join(project.root, id))}`], "/drydock/page.js"))
           } else if (components.enabled && route === `${COMPONENT_ROUTE}.json`) {
             const page = await components.page(url.searchParams.get("file") ?? "", url.searchParams.get("part") ?? undefined)
@@ -188,13 +196,13 @@ export function drydockPlugin(project: ResolvedProject): Plugin {
             // One page case in a document of its own. The component page frames it at the window's size.
             const id = url.searchParams.get("file") ?? ""
             const component = components.listed(id)
-            if (!component || !fs.existsSync(path.join(project.root, path.dirname(id), `${baseName(id)}.cases.tsx`))) return next()
+            if (!component || component.kind !== "react" || !casesFileFor(path.join(project.root, id))) return next()
             reply(res, "text/html", await html(WINDOW_ROUTE, `${baseName(id)} ${url.searchParams.get("case") ?? ""}`, [`/@fs${pageModuleFor(path.join(project.root, id))}`], "/drydock/window.js"))
           } else if (components.enabled && route === MARKS_URL) {
             reply(res, "application/json", JSON.stringify(components.marks()))
           } else if (components.enabled && route === HANDOVER_ROUTE) {
             const id = url.searchParams.get("file") ?? ""
-            const known = components.listed(id) && components.marks().marks.some((m) => m.mark === "replaces" && m.component === id)
+            const known = components.listed(id)?.kind === "react" && components.marks().marks.some((m) => m.mark === "replaces" && m.component === id)
             if (!known) return next()
             reply(res, "text/html", await html(HANDOVER_ROUTE, `${path.basename(id)} handover`, [`/@fs${handoverModuleFor(path.join(project.root, id))}`], "/drydock/page.js"))
           } else if (components.enabled && route === `${HANDOVER_ROUTE}.json`) {

@@ -3,7 +3,7 @@ import path from "node:path"
 import { deriveLedger, type Ledger, type LedgerComponent } from "@drydock/ledger"
 import { markState, readMarks, type MarkState } from "@drydock/marks"
 import { openReader, type ComponentShape, type Reader } from "@drydock/reader"
-import { ledgerConfig, type ResolvedProject } from "../project"
+import { casesFileFor, ledgerConfig, type ResolvedProject } from "../project"
 import { compareProps, type PropRow } from "./handover"
 
 export type ComponentPage = {
@@ -54,7 +54,6 @@ export type Handover = {
 }
 
 const exists = (file: string) => fs.existsSync(file)
-const casesFileOf = (file: string) => path.join(path.dirname(file), `${path.basename(file).replace(/\.\w+$/, "")}.cases.tsx`)
 
 /** The ledger and the readers for a project. Both are built when a page asks, and dropped when a source file changes. */
 export function componentService(project: ResolvedProject) {
@@ -94,9 +93,10 @@ export function componentService(project: ResolvedProject) {
     }
   }
   const casesFor = (component: LedgerComponent) => {
-    const file = casesFileOf(path.join(project.root, component.id))
-    return exists(file) ? path.relative(project.root, file) : null
+    const file = casesFileFor(path.join(project.root, component.id))
+    return file ? path.relative(project.root, file) : null
   }
+
 
   /** The marks file is read on every call. It is small, and a page then follows an edit to it without a watcher. */
   const marks = (): MarksView => {

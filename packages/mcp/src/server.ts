@@ -1,6 +1,5 @@
-import fs from "node:fs"
 import path from "node:path"
-import { collectTokens, componentService, type ResolvedProject } from "@drydock/catalog/data"
+import { casesFileFor, collectTokens, componentService, type ResolvedProject } from "@drydock/catalog/data"
 import { clearMark, type Mark } from "@drydock/marks"
 import { McpServer } from "@modelcontextprotocol/server"
 import * as z from "zod"
@@ -13,7 +12,6 @@ Marks and the reasons in a cases file belong to the project's owner. Never add a
 type Result = { content: { type: "text"; text: string }[]; isError?: boolean }
 const ok = (data: unknown): Result => ({ content: [{ type: "text", text: JSON.stringify(data) }] })
 const refused = (message: string): Result => ({ content: [{ type: "text", text: message }], isError: true })
-const casesFileOf = (file: string) => path.join(path.dirname(file), `${path.basename(file).replace(/\.\w+$/, "")}.cases.tsx`)
 
 /** The MCP server for one project, and a way to close what it holds open: the type readers run a compiler process each. */
 export function createDrydockServer(project: ResolvedProject): { server: McpServer; close(): Promise<void> } {
@@ -53,7 +51,7 @@ export function createDrydockServer(project: ResolvedProject): { server: McpServ
         const prefix = folder?.replace(/\/?$/, "/")
         const components = ledger.components
           .filter((c) => (!prefix || c.id.startsWith(prefix)) && (!name || c.name.toLowerCase().includes(name.toLowerCase())))
-          .map((c) => ({ id: c.id, name: c.name, level: c.level, apps: c.apps, parts: c.parts, cases: fs.existsSync(casesFileOf(path.join(project.root, c.id))) }))
+          .map((c) => ({ id: c.id, name: c.name, level: c.level, apps: c.apps, parts: c.parts, cases: Boolean(casesFileFor(path.join(project.root, c.id))) }))
         return ok({ components, unresolvedImports: ledger.unresolved.length })
       }),
   )

@@ -1,7 +1,7 @@
 import fs from "node:fs"
 import path from "node:path"
 import { deriveLedger } from "@drydock/ledger"
-import { ledgerConfig, type ResolvedProject } from "@drydock/catalog"
+import { casesFileFor, ledgerConfig, type ResolvedProject } from "@drydock/catalog"
 
 /** One component that has a cases file, with what the checks need to draw it. */
 export type CheckItem = {
@@ -31,8 +31,6 @@ function nearest(from: string, name: string, root: string): string | undefined {
   return undefined
 }
 
-const casesFileOf = (file: string) => path.join(path.dirname(file), `${path.basename(file).replace(/\.\w+$/, "")}.cases.tsx`)
-
 /** Lists the components that have a cases file, grouped by the test setup that each one runs in. `only` limits it to these ids. */
 export function planChecks(project: ResolvedProject, only?: string[]): Plan {
   if (!project.components) return { groups: [], unplaced: [] }
@@ -42,8 +40,8 @@ export function planChecks(project: ResolvedProject, only?: string[]): Plan {
   for (const component of ledger.components) {
     if (only && !only.includes(component.id)) continue
     const file = path.join(project.root, component.id)
-    const casesFile = casesFileOf(file)
-    if (component.kind !== "react" || !fs.existsSync(casesFile)) continue
+    const casesFile = casesFileFor(file)
+    if (component.kind !== "react" || !casesFile) continue
     const bunfig = nearest(path.dirname(file), "bunfig.toml", project.root)
     const tsconfig = project.components.tsconfig ? path.resolve(project.root, project.components.tsconfig) : nearest(path.dirname(file), "tsconfig.json", project.root)
     if (!bunfig) unplaced.push({ id: component.id, reason: "No bunfig.toml above it, so there is no test setup to draw it in" })
