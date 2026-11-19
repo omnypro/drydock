@@ -1,6 +1,7 @@
 import { createHotContext } from "/@vite/client"
 import css from "./catalog.css?inline"
 import { h } from "./dom"
+import { tokensCount, topNav } from "./nav"
 import type { RawValue, Token, TokensData } from "../tokens/types"
 
 function tile(token: Token): HTMLElement {
@@ -76,8 +77,9 @@ function render(data: TokensData): HTMLElement {
   return h(
     "main",
     { class: "dd" },
+    topNav(),
     h("h1", {}, "Tokens"),
-    h("p", { class: "counts" }, `${data.tokens.length} tokens, ${data.raw.length} raw values in ${data.scanned} files`),
+    h("p", { class: "counts" }, tokensCount(data)),
     nav,
     ...[...groups].map(([group, tokens]) => section(group, tokens)),
     h("section", { id: "raw-values" }, h("h2", {}, "raw-values"), rawTable(data.raw)),

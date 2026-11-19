@@ -26,7 +26,11 @@ export type ComponentPage = {
 /** A new component and the old one it replaces, by file, with the export of each that a page swaps. */
 export type Swap = { newId: string; oldId: string; part: string; oldPart: string }
 
-export type ComponentIndex = { components: Pick<LedgerComponent, "id" | "name" | "filed" | "level" | "apps" | "inShowcase" | "kind">[]; unresolved: number }
+export type ComponentIndex = {
+  /** `cases` is whether a cases file sits beside the component. */
+  components: (Pick<LedgerComponent, "id" | "name" | "filed" | "level" | "apps" | "inShowcase" | "kind"> & { cases: boolean })[]
+  unresolved: number
+}
 
 export type MarksView = {
   /** The marks file from the project config, or `null` when the config names none. */
@@ -59,6 +63,8 @@ const exists = (file: string) => fs.existsSync(file)
 export function componentService(project: ResolvedProject) {
   const settings = project.components
   let ledger: Ledger | undefined
+  /** Kept with the ledger, since the plugin asks for the index on every module it resolves. */
+  let indexed: ComponentIndex | undefined
   const readers = new Map<string, Promise<Reader>>()
 
   const tsconfigFor = (file: string): string | undefined => {
@@ -125,11 +131,13 @@ export function componentService(project: ResolvedProject) {
     /** Forgets the ledger and what the readers hold, so the next page sees the files as they are. */
     invalidate() {
       ledger = undefined
+      indexed = undefined
       for (const reader of readers.values()) void reader.then((r) => r.refresh())
     },
     /** The same, and resolves once every reader has caught up, for a caller that reads right after. */
     async refresh() {
       ledger = undefined
+      indexed = undefined
       await Promise.all([...readers.values()].map(async (reader) => (await reader).refresh()))
     },
     /** The whole ledger, as the import scan last read it. */
@@ -139,8 +147,16 @@ export function componentService(project: ResolvedProject) {
       readers.clear()
     },
     index(): ComponentIndex {
+      if (indexed) return indexed
       const { components, unresolved } = current()
-      return { components: components.map(({ id, name, filed, level, apps, inShowcase, kind }) => ({ id, name, filed, level, apps, inShowcase, kind })), unresolved: unresolved.length }
+      indexed = {
+        components: components.map((component) => {
+          const { id, name, filed, level, apps, inShowcase, kind } = component
+          return { id, name, filed, level, apps, inShowcase, kind, cases: casesFor(component) !== null }
+        }),
+        unresolved: unresolved.length,
+      }
+      return indexed
     },
     marks,
     /** The ledger component a file is, when the ledger lists it. */

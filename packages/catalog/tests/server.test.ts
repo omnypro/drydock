@@ -62,6 +62,13 @@ test("keeps serving when a file is deleted, and stops counting it", async () => 
   expect((await fetch(`${base}/drydock/tokens`)).status).toBe(200)
 })
 
+test("answers the home page of a project with no component pages, with a link to the tokens page only", async () => {
+  const html = await (await fetch(`${base}/drydock`)).text()
+  expect(html).toContain("/drydock/page.js")
+  expect(html).toContain("/drydock/tokens")
+  expect(html).not.toContain("/drydock/components")
+})
+
 test("answers a path that is only like a catalog route without the data", async () => {
   for (const url of ["/drydock/tokens.json/x", "/DRYDOCK/tokens.json", "/drydock/tokens.json%00", "/drydock/"]) {
     const text = await (await fetch(`${base}${url}`)).text()

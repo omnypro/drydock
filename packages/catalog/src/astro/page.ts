@@ -1,14 +1,16 @@
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import type { NavLink } from "../plugin"
 
 const SRC = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
 /**
  * The Astro page that draws an `.astro` component's cases, written into the catalog's own Astro root at start so its
- * imports resolve from there. `styles` are the project's stylesheets, imported the way the app imports them.
+ * imports resolve from there. `styles` are the project's stylesheets, imported the way the app imports them. `nav` is
+ * the links every page of the catalog carries.
  */
-export function componentPageSource(styles: string[]): string {
+export function componentPageSource(styles: string[], nav: NavLink[]): string {
   const css = fs.readFileSync(path.join(SRC, "client/catalog.css"), "utf8")
   return `---
 import { components } from "virtual:drydock/astro"
@@ -23,6 +25,7 @@ if (!entry) return new Response(null, { status: 404 })
 const Component = (await entry.component()).default
 const cases = (await entry.cases()).default ?? {}
 const css = ${JSON.stringify(css)}
+const nav = ${JSON.stringify(nav)}
 // A case is the props, or { props, slot } with the HTML for the default slot. Astro hoists a slot name chosen at run time
 // out of the loop it is written in, so named slots are not drawn.
 const drawn = (value) => (value && typeof value === "object" && "props" in value && "slot" in value ? value : { props: value, slot: undefined })
@@ -41,9 +44,20 @@ const apps = entry.apps.length ? \`in the app: \${entry.apps.join(", ")}\` : "no
   </head>
   <body>
     <main class="dd page">
+      <nav class="top" aria-label={nav[0]?.[0]}>
+        {nav.map(([name, href]) => <a href={href} aria-current={href === "/drydock/components" ? "true" : undefined}>{name}</a>)}
+      </nav>
       <h1>{entry.name}</h1>
-      <p class="m meta">{entry.id} · level {entry.level} · {apps} · built from {entry.builtFrom} · used by {entry.usedBy}</p>
-      <p class="m meta"><a href="/drydock/components">components</a></p>
+      <p class="m meta">{entry.id} · level {entry.level} · {apps}</p>
+      <table class="ledger">
+        {[["built from", entry.builtFrom], ["used by", entry.usedBy]].map(([label, files]) => (
+          <tr>
+            <td class="dim">{label}</td>
+            <td class="n">{files.length}</td>
+            <td><div class="names">{files.map((file) => (file.name ? <a href={\`/drydock/component?\${new URLSearchParams({ file: file.id })}\`} title={file.id}>{file.name}</a> : <span>{file.id}</span>))}</div></td>
+          </tr>
+        ))}
+      </table>
       <p class="m dim">Drawn by Astro on the server. The reader reads React components only, so there is no props table, grid or sweep.</p>
       {cases.sample === undefined ? (
         <p class="m dim">The cases file has no sample.</p>

@@ -6,6 +6,8 @@
 .dd nav { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; margin-top: 1.25rem; font-family: ui-monospace, Menlo, monospace; }
 .dd nav a { color: inherit; opacity: 0.7; }
 .dd nav a:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.dd nav.top { margin: 0 0 2rem; font-size: 12px; line-height: 1.4; }
+.dd nav.top a[aria-current] { opacity: 1; }
 .dd .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.75rem; }
 .dd .list { display: grid; gap: 0.5rem; }
 .dd .tile { display: grid; gap: 0.375rem; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
@@ -40,6 +42,10 @@
 .dd.page .cases { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
 .dd.page .case h3 { margin: 0 0 0.5rem; font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--dd-dim); font-weight: 400; }
 .dd.page table.index td a { color: inherit; }
+.dd.page table.ledger { margin-top: 0.75rem; }
+.dd.page table.ledger td:not(:last-child) { width: 1%; white-space: nowrap; }
+.dd.page table.ledger a { color: inherit; }
+.dd.page .names { display: flex; flex-wrap: wrap; gap: 0.125rem 1rem; }
 .dd.page .win { margin: 0; min-width: 0; }
 .dd.page .win figcaption { margin-bottom: 0.5rem; }
 .dd.page .window { width: 100%; overflow: hidden; border: 1px solid var(--dd-line); }

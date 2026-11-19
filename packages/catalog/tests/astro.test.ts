@@ -51,6 +51,15 @@ describe("the catalog on an Astro site", () => {
     expect(page.match(/class="stage"/g)?.length).toBe(3)
   }, 30_000)
 
+  test("puts the catalog's links and the ledger's rows on an .astro component's page", async () => {
+    const page = await (await get("/drydock/astro/src/components/Badge.astro")).text()
+    expect(page).toContain('<a href="/drydock/tokens">tokens</a>')
+    expect(page).toContain('<a href="/drydock/components" aria-current="true">components</a>')
+    expect(page).toContain('<td class="dim">built from</td><td class="n">0</td>')
+    const home = await (await get("/drydock")).text()
+    expect(home).toContain("/drydock/page.js")
+  }, 30_000)
+
   test("draws a case's HTML in the default slot", async () => {
     const page = await (await get("/drydock/astro/src/components/Box.astro")).text()
     expect(page).toContain('<div class="box"><p>Inside the box</p></div>')

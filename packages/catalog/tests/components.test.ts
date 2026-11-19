@@ -11,13 +11,17 @@ let server: ViteDevServer
 let base: string
 
 const json = async <T>(url: string) => (await (await fetch(`${base}${url}`)).json()) as T
+/** The links a page's HTML carries for the nav, as the client reads them. */
+const nav = (html: string) => JSON.parse(decode(/<meta name="drydock:nav" content="([^"]*)"/.exec(html)?.[1] ?? "[]")) as [string, string][]
+const decode = (text: string) => text.replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(Number(code)))
 
 beforeAll(async () => {
   root = await mkdtemp(path.join(os.tmpdir(), "drydock-components-"))
   await mkdir(path.join(root, "app/src/ui"), { recursive: true })
   await writeFile(path.join(root, "app/vite.config.ts"), "export default {}\n")
   await writeFile(path.join(root, "app/tsconfig.json"), JSON.stringify({ compilerOptions: { strict: true, moduleResolution: "bundler", module: "ESNext", target: "ES2022", jsx: "preserve" }, include: ["src"] }))
-  await writeFile(path.join(root, "app/src/main.tsx"), `import { Tag } from "./ui/Tag"\nconsole.log(Tag)\n`)
+  await writeFile(path.join(root, "app/src/main.tsx"), `import { Bare } from "./ui/Bare"\nimport { Tag } from "./ui/Tag"\nconsole.log(Bare, Tag)\n`)
+  await writeFile(path.join(root, "app/src/ui/Bare.tsx"), `export function Bare() {\n  return <i />\n}\n`)
   await writeFile(
     path.join(root, "app/src/ui/Tag.tsx"),
     `/** A small tag. */\nexport function Tag({ tone = "calm", label }: { /** The mood. */ tone?: "calm" | "warm"; label: string }) {\n  return <b>{tone}{label}</b>\n}\n`,
@@ -48,7 +52,40 @@ afterAll(async () => {
 
 test("lists the components the ledger finds", async () => {
   const index = await json<ComponentIndex>("/drydock/components.json")
-  expect(index.components).toEqual([{ id: "app/src/ui/Tag.tsx", name: "Tag", filed: "app/src/ui", level: 0, apps: ["app"], inShowcase: true, kind: "react" }])
+  expect(index.components).toEqual([
+    { id: "app/src/ui/Bare.tsx", name: "Bare", filed: "app/src/ui", level: 0, apps: ["app"], inShowcase: false, kind: "react", cases: false },
+    { id: "app/src/ui/Tag.tsx", name: "Tag", filed: "app/src/ui", level: 0, apps: ["app"], inShowcase: true, kind: "react", cases: true },
+  ])
+})
+
+test("lists a cases file written after the index was first read", async () => {
+  await json<ComponentIndex>("/drydock/components.json")
+  const file = path.join(root, "app/src/ui/Bare.cases.tsx")
+  await writeFile(file, `export default { sample: {} }\n`)
+  server.watcher.emit("add", file)
+  const withCases = await json<ComponentIndex>("/drydock/components.json")
+  expect(withCases.components.find((c) => c.name === "Bare")?.cases).toBe(true)
+  await rm(file)
+  server.watcher.emit("unlink", file)
+  const without = await json<ComponentIndex>("/drydock/components.json")
+  expect(without.components.find((c) => c.name === "Bare")?.cases).toBe(false)
+})
+
+test("answers the home page with a link to each section", async () => {
+  for (const route of ["/drydock", "/drydock/"]) {
+    const html = await (await fetch(`${base}${route}`)).text()
+    expect(html).toContain("/drydock/page.js")
+    expect(nav(html)).toEqual([
+      [path.basename(root), "/drydock"],
+      ["tokens", "/drydock/tokens"],
+      ["components", "/drydock/components"],
+    ])
+  }
+})
+
+test("puts the same links on a component's page", async () => {
+  const html = await (await fetch(`${base}/drydock/component?file=app/src/ui/Tag.tsx`)).text()
+  expect(nav(html).map(([name]) => name)).toEqual([path.basename(root), "tokens", "components"])
 })
 
 test("serves a component's ledger entry, the shape the reader reads, and the cases file beside it", async () => {

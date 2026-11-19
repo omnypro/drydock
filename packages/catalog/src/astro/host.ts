@@ -7,7 +7,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import type { Plugin } from "vite"
 import { componentService, type ComponentService } from "../components/service"
-import { ASTRO_ROUTE, drydockPlugin } from "../plugin"
+import { ASTRO_ROUTE, drydockPlugin, navFor } from "../plugin"
 import { casesFileFor, type ResolvedProject } from "../project"
 import { componentPageSource } from "./page"
 
@@ -87,7 +87,10 @@ function listPlugin(project: ResolvedProject, service: ComponentService): Plugin
         const file = path.join(project.root, c.id)
         const cases = c.kind === "astro" ? casesFileFor(file) : null
         if (!cases) return []
-        const facts = { id: c.id, name: c.name, level: c.level, apps: c.apps, builtFrom: c.builtFrom.length, usedBy: c.usedBy.length + c.referencedBy.length }
+        // A file the ledger lists carries its name, which the page links. One it does not list is shown as its path.
+        const named = (ids: string[]) =>
+          ids.map((id) => ({ id, name: service.listed(id)?.name })).sort((a, b) => Number(!a.name) - Number(!b.name) || (a.name ?? a.id).localeCompare(b.name ?? b.id))
+        const facts = { id: c.id, name: c.name, level: c.level, apps: c.apps, builtFrom: named(c.builtFrom), usedBy: named([...c.usedBy, ...c.referencedBy]) }
         return [`  { ...${JSON.stringify(facts)}, component: () => import(${JSON.stringify(file)}), cases: () => import(${JSON.stringify(cases)}) },`]
       })
       return `export const components = [\n${entries.join("\n")}\n]\n`
@@ -128,7 +131,7 @@ function inlineConfig(project: ResolvedProject, service: ComponentService) {
   const srcDir = path.join(root, "drydock-src")
   fs.mkdirSync(srcDir, { recursive: true })
   const page = path.join(root, "drydock-component.astro")
-  fs.writeFileSync(page, componentPageSource(project.styles))
+  fs.writeFileSync(page, componentPageSource(project.styles, navFor(project, service.enabled)))
   const integration = {
     name: "drydock",
     hooks: {

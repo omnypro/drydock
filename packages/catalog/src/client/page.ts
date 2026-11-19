@@ -5,10 +5,13 @@ import { sweep } from "../generate/sweep"
 import { compose, type Props } from "../generate/valid"
 import { allCases, readCase, type CasesInput } from "../generate/cases"
 import type { ComponentIndex, ComponentPage, Handover, MarksView } from "../components/service"
+import { COMPONENTS, TOKENS, componentsCount, links, tokensCount, topNav } from "./nav"
 import { boundary, type Runtime } from "./runtime"
 import { forOld, holds, withOld } from "./swap"
 import type { MarkState } from "@drydock/marks"
 import type { PropShape } from "@drydock/reader"
+import type { LedgerComponent } from "@drydock/ledger"
+import type { TokensData } from "../tokens/types"
 
 let Boundary: ReturnType<typeof boundary> | undefined
 
@@ -270,12 +273,13 @@ async function handoverPage(root: HTMLElement) {
   const remaining = mark.remaining.length
   const query = (part: string) => `?${new URLSearchParams({ file: component.id, replaces: mark.replaces, part })}`
   const children: Child[] = [
+    topNav(),
     h("h1", {}, handover.part),
     h("p", { class: "m meta" }, `${component.id} replaces `, old ? pageLink(old.id, old.id) : mark.replaces),
     mark.reason ? h("p", { class: "doc" }, mark.reason) : null,
     h("p", { class: "m meta" }, standing(mark)),
     handover.parts.length > 1 ? h("nav", {}, ...handover.parts.map((part) => h("a", { href: query(part) }, part))) : null,
-    h("p", { class: "m meta" }, pageLink(component.id, handover.part), " · ", h("a", { href: "/drydock/components" }, "components")),
+    h("p", { class: "m meta" }, pageLink(component.id, handover.part)),
   ]
   const New = runtime.Module[handover.part] ?? runtime.Module.default
   const Old = old && handover.oldPart ? runtime.old?.[old.id]?.[handover.oldPart] : undefined
@@ -333,24 +337,32 @@ function docBlock(doc: string): Child[] {
   return [h("p", { class: "doc" }, first), rest.length ? h("details", {}, h("summary", {}, "more"), h("p", { class: "doc" }, rest.join("\n\n"))) : null]
 }
 
+/** What the component renders and what renders it, each with its count and a link for every one the ledger lists. */
+function ledgerTable(component: LedgerComponent, index: ComponentIndex): HTMLElement {
+  const names = new Map(index.components.map((c) => [c.id, c.name]))
+  const ref = (file: string) => (names.has(file) ? h("a", { href: `/drydock/component?${new URLSearchParams({ file })}`, title: file }, names.get(file)!) : h("span", {}, file))
+  // The ledger sorts by path. A reader looks for a name, so the listed ones go by name and the paths follow.
+  const byName = (files: string[]) => [...files].sort((a, b) => Number(!names.has(a)) - Number(!names.has(b)) || (names.get(a) ?? a).localeCompare(names.get(b) ?? b))
+  const row = (label: string, files: string[]) =>
+    h("tr", {}, h("td", { class: "dim" }, label), h("td", { class: "n" }, String(files.length)), h("td", {}, h("div", { class: "names" }, ...byName(files).map(ref))))
+  return h("table", { class: "ledger" }, row("built from", component.builtFrom), row("used by", [...component.usedBy, ...component.referencedBy]))
+}
+
 async function componentPage(root: HTMLElement) {
   const runtime = window.__drydock!
-  const page = (await (await fetch(`/drydock/component.json${location.search}`)).json()) as ComponentPage
+  const [page, index] = await Promise.all([getJson<ComponentPage>(`/drydock/component.json${location.search}`), getJson<ComponentIndex>("/drydock/components.json")])
   const { component } = page
   const apps = component.apps.length ? `in the app: ${component.apps.join(", ")}` : "not in the app"
   const children: Child[] = [
+    topNav(),
     h("h1", {}, page.part),
     ...docBlock(page.shape?.doc ?? ""),
-    h(
-      "p",
-      { class: "m meta" },
-      `${component.id} · level ${component.level} · ${apps} · built from ${component.builtFrom.length} · used by ${component.usedBy.length + component.referencedBy.length}`,
-    ),
+    h("p", { class: "m meta" }, `${component.id} · level ${component.level} · ${apps}`),
+    ledgerTable(component, index),
     ...markLines(page),
     page.parts.length > 1
       ? h("nav", {}, ...page.parts.map((part) => h("a", { href: `?${new URLSearchParams({ file: component.id, part })}` }, part)))
       : null,
-    h("p", { class: "m meta" }, h("a", { href: "/drydock/components" }, "components")),
   ]
   if (!page.shape) children.push(h("p", { class: "m dim" }, page.error ?? "The reader did not find this component."))
   else {
@@ -371,15 +383,16 @@ async function indexPage(root: HTMLElement) {
     h(
       "main",
       { class: "dd page" },
+      topNav(),
       h("h1", {}, "Components"),
-      h("p", { class: "m meta" }, `${index.components.length} components`),
+      h("p", { class: "m meta" }, componentsCount(index.components.length)),
       marksSection(marks),
       h(
         "table",
         { class: "index" },
-        h("tr", {}, h("th", {}, "name"), h("th", {}, "level"), h("th", {}, "app"), h("th", {}, "shown")),
+        h("tr", {}, h("th", {}, "name"), h("th", {}, "level"), h("th", {}, "app"), h("th", {}, "shown"), h("th", {}, "cases")),
         ...[...byFolder].flatMap(([folder, components]) => [
-          h("tr", { class: "group" }, h("th", { colspan: "4" }, folder)),
+          h("tr", { class: "group" }, h("th", { colspan: "5" }, folder)),
           ...components.map((c) =>
             h(
               "tr",
@@ -388,6 +401,7 @@ async function indexPage(root: HTMLElement) {
               h("td", { class: "n" }, String(c.level)),
               h("td", { class: "dim" }, c.apps.join(", ")),
               h("td", { class: "dim" }, c.inShowcase ? "yes" : ""),
+              h("td", { class: "dim" }, c.cases ? "yes" : ""),
             ),
           ),
         ]),
@@ -396,8 +410,21 @@ async function indexPage(root: HTMLElement) {
   )
 }
 
+/** The project's name, and each section as a link whose text is the section's count. */
+async function homePage(root: HTMLElement) {
+  const [[name] = [""], ...sections] = links()
+  const counts: Record<string, () => Promise<string>> = {
+    [TOKENS]: async () => tokensCount(await getJson<TokensData>("/drydock/tokens.json")),
+    [COMPONENTS]: async () => componentsCount((await getJson<ComponentIndex>("/drydock/components.json")).components.length),
+  }
+  const lines = await Promise.all(sections.map(async ([section, href]) => h("p", { class: "m meta" }, h("a", { href }, (await counts[href]?.()) ?? section))))
+  root.replaceChildren(h("main", { class: "dd page" }, topNav(), h("h1", {}, name), ...lines))
+}
+
 document.head.append(h("style", {}, css))
 const root = document.getElementById("root")!
-if (location.pathname.startsWith("/drydock/handover")) await handoverPage(root)
-else if (location.pathname.startsWith("/drydock/component") && !location.pathname.startsWith("/drydock/components")) await componentPage(root)
+const route = location.pathname.replace(/\/$/, "")
+if (route === "/drydock") await homePage(root)
+else if (route.startsWith("/drydock/handover")) await handoverPage(root)
+else if (route.startsWith("/drydock/component") && !route.startsWith("/drydock/components")) await componentPage(root)
 else await indexPage(root)

@@ -12,6 +12,7 @@ const STYLES_ID = "virtual:drydock/styles"
 const PAGE_MODULE = /^(.*)[\\/]__drydock__([^\\/]+)\.tsx$/
 /** The handover page's module, beside the new component. It also imports each old component that the new one replaces. */
 const HANDOVER_MODULE = /^(.*)[\\/]__drydock_handover__([^\\/]+)\.tsx$/
+const HOME_ROUTE = "/drydock"
 const TOKENS_ROUTE = "/drydock/tokens"
 const COMPONENTS_ROUTE = "/drydock/components"
 const COMPONENT_ROUTE = "/drydock/component"
@@ -54,14 +55,25 @@ async function buildScript(entry: string): Promise<string> {
   return chunk.code
 }
 
+const escape = (text: string) => text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`)
+
+/** A link on every page of the catalog: its text and where it goes. */
+export type NavLink = [name: string, href: string]
+
+/** The links every page carries: the project's folder name for the home page, then each section the project has. */
+export function navFor(project: ResolvedProject, components: boolean): NavLink[] {
+  return [[path.basename(project.root), HOME_ROUTE], ["tokens", TOKENS_ROUTE], ...(components ? [["components", COMPONENTS_ROUTE] as NavLink] : [])]
+}
+
 /** A page's HTML. The project's stylesheets load through its own pipeline, and so do any `scripts` that come before the end of the head. */
-function shell(title: string, scripts: string[] = []): string {
+function shell(title: string, nav: NavLink[], scripts: string[] = []): string {
   return `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>${title.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`)}</title>
+    <meta name="drydock:nav" content="${escape(JSON.stringify(nav))}" />
+    <title>${escape(title)}</title>
     <script type="module" src="/@id/__x00__${STYLES_ID}"></script>
 ${scripts.map((src) => `    <script type="module" src="${src}"></script>`).join("\n")}
   </head>
@@ -152,14 +164,16 @@ export function drydockPlugin(project: ResolvedProject, components: ComponentSer
       }
       /** The HTML goes through the project's pipeline. The built script goes in after it, which Vite's HTML step would otherwise send through the module pipeline. */
       const html = async (route: string, title: string, before: string[], script: string) => {
-        const transformed = await server.transformIndexHtml(route, shell(title, before))
+        const transformed = await server.transformIndexHtml(route, shell(title, navFor(project, components.enabled), before))
         return transformed.replace("</body>", `    <script type="module" src="${script}"></script>\n  </body>`)
       }
       server.middlewares.use(async (req, res, next) => {
         const url = new URL(req.url ?? "/", "http://localhost")
         const route = url.pathname
         try {
-          if (route === TOKENS_ROUTE || route === `${TOKENS_ROUTE}/`) {
+          if (route === HOME_ROUTE || route === `${HOME_ROUTE}/`) {
+            reply(res, "text/html", await html(HOME_ROUTE, path.basename(project.root), [], "/drydock/page.js"))
+          } else if (route === TOKENS_ROUTE || route === `${TOKENS_ROUTE}/`) {
             reply(res, "text/html", await html(TOKENS_ROUTE, "Tokens", [], "/drydock/client.js"))
           } else if (SCRIPTS[route]) {
             let script = built.get(route)
