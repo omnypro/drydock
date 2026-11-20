@@ -41,7 +41,6 @@
   :scope.page .meta { margin: 0.75rem 0 0; color: var(--dd-dim); }
   :scope.page .meta a { color: inherit; }
   :scope.page td.stage, :scope.page .stage { padding: 0.75rem 1rem 0.75rem 0; vertical-align: middle; }
-  :scope.page .stage > div { display: inline-flex; align-items: center; }
   :scope.page .boxed > div { border: 1px dashed var(--dd-line); padding: 0.5rem; }
   :scope.page tr.group th { padding-top: 1.25rem; color: inherit; }
   :scope.page td.dim, :scope.page .dim { color: var(--dd-dim); }

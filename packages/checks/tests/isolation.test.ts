@@ -65,6 +65,8 @@ beforeAll(async () => {
         heading: pick(document.querySelector("#sweep h2")!, ["fontFamily", "borderBottomWidth", "fontSize"]),
         label: pick(label, ["fontFamily", "fontSize", "textAlign"]),
         host: pick(document.querySelector("#sample .stage > div")!, ["display"]),
+        // How much of the stage's width the component's own root takes: a block fills it, as it fills its parent in the app.
+        fill: { share: String(Math.round((document.querySelector("#sample .stage .probe")!.getBoundingClientRect().width / document.querySelector("#sample .stage > div")!.parentElement!.clientWidth) * 10) / 10) },
       }
     })
   })
@@ -93,5 +95,9 @@ test("the catalog's own page, headings and labels keep the catalog's styles", ()
   expect(own.page).toEqual({ paddingLeft: "24px", maxWidth: "1280px" })
   expect(own.heading).toEqual({ fontFamily: "ui-monospace, Menlo, monospace", borderBottomWidth: "1px", fontSize: "16px" })
   expect(own.label).toEqual({ fontFamily: "ui-monospace, Menlo, monospace", fontSize: "12px", textAlign: "left" })
-  expect(own.host).toEqual({ display: "inline-flex" })
+})
+
+test("a component is drawn in a plain block, so a block-level one fills the width it is given", () => {
+  expect(own.host).toEqual({ display: "block" })
+  expect(Number(own.fill!.share)).toBeGreaterThan(0.9)
 })
