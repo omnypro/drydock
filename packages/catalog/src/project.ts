@@ -48,6 +48,11 @@ export function casesFileFor(file: string): string | null {
   return null
 }
 
+/** Where a project's config is: the path that was given, read from the working folder, or `drydock/config.ts` in the project. */
+export function configPathFor(root: string, given?: string): string {
+  return given ? path.resolve(given) : path.join(root, "drydock", "config.ts")
+}
+
 /** What the ledger reads for a project with component pages. */
 export function ledgerConfig(project: ResolvedProject): LedgerConfig {
   const ledger = project.components!.ledger

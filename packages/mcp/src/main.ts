@@ -1,7 +1,7 @@
 // Serves Drydock's MCP tools for one project over stdio. Usage: bun packages/mcp/src/main.ts <project root> [project config]
-// The config defaults to drydock.config.ts at the project root. Stdout carries the protocol, so anything else goes to stderr.
+// The config defaults to drydock/config.ts in the project. Stdout carries the protocol, so anything else goes to stderr.
 import path from "node:path"
-import type { ProjectConfig } from "@drydock/catalog/data"
+import { configPathFor, type ProjectConfig } from "@drydock/catalog/data"
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio"
 import { createDrydockServer } from "./server"
 
@@ -11,7 +11,7 @@ if (!rootArg) {
   process.exit(1)
 }
 const root = path.resolve(rootArg)
-const config = (await import(path.resolve(configArg ?? path.join(root, "drydock.config.ts")))).default as ProjectConfig
+const config = (await import(configPathFor(root, configArg))).default as ProjectConfig
 const { server, close } = createDrydockServer({ ...config, root })
 
 let closing = false

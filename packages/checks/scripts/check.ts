@@ -1,8 +1,8 @@
 // Runs the three checks that may fail a build. Usage: bun scripts/check.ts <project root> [project config] [--cases] [--focus] [--component <id>]
-// With neither --cases nor --focus it runs both. The config defaults to drydock.config.ts at the project root.
+// With neither --cases nor --focus it runs both. The config defaults to drydock/config.ts in the project.
 // It exits with 1 when a check fails, and with 2 when it cannot run.
 import path from "node:path"
-import { isAstro, startCatalog, type ProjectConfig } from "@drydock/catalog"
+import { configPathFor, isAstro, startCatalog, type ProjectConfig } from "@drydock/catalog"
 import { checkFocus, planAstro, planChecks, runAstroChecks, runCaseChecks, withBrowser } from "../src"
 
 const args = process.argv.slice(2)
@@ -15,7 +15,7 @@ if (!rootArg) {
   process.exit(2)
 }
 const root = path.resolve(rootArg)
-const config = (await import(path.resolve(configArg ?? path.join(root, "drydock.config.ts")))).default as ProjectConfig
+const config = (await import(configPathFor(root, configArg))).default as ProjectConfig
 const project = { ...config, root }
 const both = !flags.has("--cases") && !flags.has("--focus")
 

@@ -1,7 +1,7 @@
 // Starts the catalog on a project's own Vite server. Usage: bun scripts/serve.ts <project root> [project config] [port]
-// The config defaults to drydock.config.ts at the project root.
+// The config defaults to drydock/config.ts in the project.
 import path from "node:path"
-import { startCatalog, type ProjectConfig } from "../src"
+import { configPathFor, startCatalog, type ProjectConfig } from "../src"
 
 const [rootArg, configArg, portArg] = process.argv.slice(2)
 if (!rootArg) {
@@ -9,7 +9,7 @@ if (!rootArg) {
   process.exit(1)
 }
 const root = path.resolve(rootArg)
-const config = (await import(path.resolve(configArg ?? path.join(root, "drydock.config.ts")))).default as ProjectConfig
+const config = (await import(configPathFor(root, configArg))).default as ProjectConfig
 const catalog = await startCatalog({ ...config, root }, { port: Number(portArg ?? 6100), host: "localhost", strictPort: true })
 console.log(`catalog: ${catalog.url}`)
 console.log(`tokens page: ${catalog.url}/drydock/tokens`)

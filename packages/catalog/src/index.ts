@@ -1,6 +1,6 @@
 export { buildAstroCatalog } from "./astro/host"
 export { catalogViteConfig, PAGE_ENTRIES } from "./host"
-export { casesFileFor, defineProject, isAstro, ledgerConfig } from "./project"
+export { casesFileFor, configPathFor, defineProject, isAstro, ledgerConfig } from "./project"
 export { startCatalog, type RunningCatalog } from "./server"
 export type { ProjectConfig, ResolvedProject } from "./project"
 export { collectTokens } from "./tokens/collect"
