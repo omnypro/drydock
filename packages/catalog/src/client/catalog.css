@@ -1,53 +1,65 @@
-.dd { --dd-line: color-mix(in srgb, currentColor 18%, transparent); --dd-dim: color-mix(in srgb, currentColor 60%, transparent); box-sizing: border-box; max-width: 72rem; margin: 0 auto; padding: 2rem 1.5rem 6rem; font: 14px/1.4 ui-sans-serif, system-ui, sans-serif; }
-.dd *, .dd *::before, .dd *::after { box-sizing: inherit; }
-.dd h1 { margin: 0 0 0.25rem; font-size: 1.75rem; font-weight: 600; }
-.dd h2 { margin: 3rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--dd-line); font-size: 1rem; font-weight: 600; font-family: ui-monospace, Menlo, monospace; }
-.dd .counts { margin: 0; color: var(--dd-dim); font-family: ui-monospace, Menlo, monospace; }
-.dd nav { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; margin-top: 1.25rem; font-family: ui-monospace, Menlo, monospace; }
-.dd nav a { color: inherit; opacity: 0.7; }
-.dd nav a:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
-.dd nav.top { margin: 0 0 2rem; font-size: 12px; line-height: 1.4; }
-.dd nav.top a[aria-current] { opacity: 1; }
-.dd .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.75rem; }
-.dd .list { display: grid; gap: 0.5rem; }
-.dd .tile { display: grid; gap: 0.375rem; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
-.dd .tile .name { overflow-wrap: anywhere; }
-.dd .tile .value { color: var(--dd-dim); overflow-wrap: anywhere; }
-.dd .swatch { height: 4rem; border: 1px solid var(--dd-line); border-radius: 4px; }
-.dd .row { display: grid; grid-template-columns: 12rem 1fr 16rem; align-items: center; gap: 1rem; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
-.dd .row .value { color: var(--dd-dim); overflow-wrap: anywhere; }
-.dd .bar { height: 0.75rem; background: currentColor; opacity: 0.55; border-radius: 2px; max-width: 100%; }
-.dd .box { width: 3rem; height: 3rem; border: 1px solid currentColor; }
-.dd table { width: 100%; border-collapse: collapse; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
-.dd th, .dd td { padding: 0.375rem 0.75rem 0.375rem 0; border-bottom: 1px solid var(--dd-line); text-align: left; vertical-align: top; }
-.dd th { color: var(--dd-dim); font-weight: 400; }
-.dd td.n { text-align: right; font-variant-numeric: tabular-nums; }
-.dd td .chip { display: inline-block; width: 0.875rem; height: 0.875rem; margin-right: 0.5rem; vertical-align: -2px; border: 1px solid var(--dd-line); border-radius: 2px; }
-.dd .files { color: var(--dd-dim); overflow-wrap: anywhere; }
-.dd.page { font: inherit; max-width: 80rem; }
-.dd.page .m, .dd.page h1, .dd.page h2, .dd.page table, .dd.page summary, .dd.page nav { font-family: ui-monospace, Menlo, monospace; }
-.dd.page .m, .dd.page table, .dd.page summary { font-size: 12px; line-height: 1.4; }
-.dd.page h1 { font-size: 1.75rem; font-weight: 600; }
-.dd.page .doc { margin: 0.5rem 0 0; max-width: 48rem; }
-.dd.page .meta { margin: 0.75rem 0 0; color: var(--dd-dim); }
-.dd.page .meta a { color: inherit; }
-.dd.page td.stage, .dd.page .stage { padding: 0.75rem 1rem 0.75rem 0; vertical-align: middle; }
-.dd.page .stage > div { display: inline-flex; align-items: center; }
-.dd.page .boxed > div { border: 1px dashed var(--dd-line); padding: 0.5rem; }
-.dd.page .error { margin: 0; padding: 0.5rem; border: 1px solid currentColor; color: #c0392b; white-space: pre-wrap; font: 12px/1.4 ui-monospace, Menlo, monospace; }
-.dd.page tr.group th { padding-top: 1.25rem; color: inherit; }
-.dd.page td.dim, .dd.page .dim { color: var(--dd-dim); }
-.dd.page details { margin-top: 0.75rem; }
-.dd.page details table { margin-top: 0.5rem; }
-.dd.page .cases { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
-.dd.page .case h3 { margin: 0 0 0.5rem; font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--dd-dim); font-weight: 400; }
-.dd.page table.index td a { color: inherit; }
-.dd.page table.ledger { margin-top: 0.75rem; }
-.dd.page table.ledger td:not(:last-child) { width: 1%; white-space: nowrap; }
-.dd.page table.ledger a { color: inherit; }
-.dd.page .names { display: flex; flex-wrap: wrap; gap: 0.125rem 1rem; }
-.dd.page .win { margin: 0; min-width: 0; }
-.dd.page .win figcaption { margin-bottom: 0.5rem; }
-.dd.page .window { width: 100%; overflow: hidden; border: 1px solid var(--dd-line); }
-.dd.page .window iframe { display: block; border: 0; transform-origin: 0 0; }
-.dd.page .pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+/*
+ * The catalog's own styles. A drawn component sits in a stage's host, and nothing here may reach it:
+ * the scope stops at the host's children, so no rule matches an element of a component, and no element
+ * above a stage sets a font, a color or an alignment for a component to inherit. A cell that holds a
+ * stage takes none of the label type that other cells take.
+ */
+/* Inside a scope a selector is read from the scope's root, so the root is written `:scope` where it was `.dd`. */
+@scope (.dd) to (.stage > * > *) {
+  :scope { --dd-line: color-mix(in srgb, currentColor 18%, transparent); --dd-dim: color-mix(in srgb, currentColor 60%, transparent); box-sizing: border-box; max-width: 72rem; margin: 0 auto; padding: 2rem 1.5rem 6rem; font: 14px/1.4 ui-sans-serif, system-ui, sans-serif; }
+  :scope *, :scope *::before, :scope *::after { box-sizing: inherit; }
+  :scope h1 { margin: 0 0 0.25rem; font-size: 1.75rem; font-weight: 600; }
+  :scope h2 { margin: 3rem 0 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--dd-line); font-size: 1rem; font-weight: 600; font-family: ui-monospace, Menlo, monospace; }
+  :scope .counts { margin: 0; color: var(--dd-dim); font-family: ui-monospace, Menlo, monospace; }
+  :scope nav { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; margin-top: 1.25rem; font-family: ui-monospace, Menlo, monospace; }
+  :scope nav a { color: inherit; opacity: 0.7; }
+  :scope nav a:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+  :scope nav.top { margin: 0 0 2rem; font-size: 12px; line-height: 1.4; }
+  :scope nav.top a[aria-current] { opacity: 1; }
+  :scope .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.75rem; }
+  :scope .list { display: grid; gap: 0.5rem; }
+  :scope .tile { display: grid; gap: 0.375rem; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  :scope .tile .name { overflow-wrap: anywhere; }
+  :scope .tile .value { color: var(--dd-dim); overflow-wrap: anywhere; }
+  :scope .swatch { height: 4rem; border: 1px solid var(--dd-line); border-radius: 4px; }
+  :scope .row { display: grid; grid-template-columns: 12rem 1fr 16rem; align-items: center; gap: 1rem; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  :scope .row .value { color: var(--dd-dim); overflow-wrap: anywhere; }
+  :scope .bar { height: 0.75rem; background: currentColor; opacity: 0.55; border-radius: 2px; max-width: 100%; }
+  :scope .box { width: 3rem; height: 3rem; border: 1px solid currentColor; }
+  :scope table { width: 100%; border-collapse: collapse; }
+  :scope th, :scope td { padding: 0.375rem 0.75rem 0.375rem 0; border-bottom: 1px solid var(--dd-line); vertical-align: top; }
+  :scope th, :scope td:not(:has(> .stage)) { font: 12px/1.4 ui-monospace, Menlo, monospace; text-align: left; }
+  :scope th { color: var(--dd-dim); font-weight: 400; }
+  :scope td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  :scope td .chip { display: inline-block; width: 0.875rem; height: 0.875rem; margin-right: 0.5rem; vertical-align: -2px; border: 1px solid var(--dd-line); border-radius: 2px; }
+  :scope .files { color: var(--dd-dim); overflow-wrap: anywhere; }
+  :scope.page { font: inherit; max-width: 80rem; }
+  :scope.page .m, :scope.page h1, :scope.page h2, :scope.page summary, :scope.page nav { font-family: ui-monospace, Menlo, monospace; }
+  :scope.page .m, :scope.page summary { font-size: 12px; line-height: 1.4; }
+  :scope.page h1 { font-size: 1.75rem; font-weight: 600; }
+  :scope.page .doc { margin: 0.5rem 0 0; max-width: 48rem; }
+  :scope.page .meta { margin: 0.75rem 0 0; color: var(--dd-dim); }
+  :scope.page .meta a { color: inherit; }
+  :scope.page td.stage, :scope.page .stage { padding: 0.75rem 1rem 0.75rem 0; vertical-align: middle; }
+  :scope.page .stage > div { display: inline-flex; align-items: center; }
+  :scope.page .boxed > div { border: 1px dashed var(--dd-line); padding: 0.5rem; }
+  :scope.page tr.group th { padding-top: 1.25rem; color: inherit; }
+  :scope.page td.dim, :scope.page .dim { color: var(--dd-dim); }
+  :scope.page details { margin-top: 0.75rem; }
+  :scope.page details table { margin-top: 0.5rem; }
+  :scope.page .cases { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+  :scope.page .case h3 { margin: 0 0 0.5rem; font: 12px/1.4 ui-monospace, Menlo, monospace; color: var(--dd-dim); font-weight: 400; }
+  :scope.page table.index td a { color: inherit; }
+  :scope.page table.ledger { margin-top: 0.75rem; }
+  :scope.page table.ledger td:not(:last-child) { width: 1%; white-space: nowrap; }
+  :scope.page table.ledger a { color: inherit; }
+  :scope.page .names { display: flex; flex-wrap: wrap; gap: 0.125rem 1rem; }
+  :scope.page .win { margin: 0; min-width: 0; }
+  :scope.page .win figcaption { margin-bottom: 0.5rem; }
+  :scope.page .window { width: 100%; overflow: hidden; border: 1px solid var(--dd-line); }
+  :scope.page .window iframe { display: block; border: 0; transform-origin: 0 0; }
+  :scope.page .pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+}
+
+/* The message a case shows when it throws. The boundary draws it where the component would be, so it is named by its own attribute. */
+.dd .stage > * > pre[data-dd-error] { margin: 0; padding: 0.5rem; border: 1px solid currentColor; color: #c0392b; white-space: pre-wrap; font: 12px/1.4 ui-monospace, Menlo, monospace; }

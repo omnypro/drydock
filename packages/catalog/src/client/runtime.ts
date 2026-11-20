@@ -33,7 +33,7 @@ export function boundary(React: ReactLike) {
       return { error }
     }
     render() {
-      return this.state.error ? React.createElement("pre", { className: "error" }, String(this.state.error.message)) : this.props.children
+      return this.state.error ? React.createElement("pre", { className: "error", "data-dd-error": "" }, String(this.state.error.message)) : this.props.children
     }
   }
 }
