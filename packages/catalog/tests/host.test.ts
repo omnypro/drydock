@@ -45,6 +45,14 @@ test("keeps Vite's dependency cache in a node_modules folder under the temp fold
   expect(config.cacheDir).toMatch(/[\\/]node_modules[\\/]/)
 })
 
+test("watches files without the fsevents package, whatever the app's config says", async () => {
+  const config = await catalogViteConfig(
+    { root, appConfig: "apps/web/vite.config.ts", tokens: [], styles: [], rawValues: [] },
+    { command: "serve", mode: "development" },
+  )
+  expect(config.server?.watch).toMatchObject({ useFsEvents: false })
+})
+
 test("fails with the path when the app config is missing", async () => {
   await expect(
     catalogViteConfig({ root, appConfig: "nope/vite.config.ts", tokens: [], styles: [], rawValues: [] }, { command: "serve", mode: "development" }),

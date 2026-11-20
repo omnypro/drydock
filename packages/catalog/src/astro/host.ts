@@ -174,7 +174,8 @@ function inlineConfig(project: ResolvedProject, service: ComponentService) {
         cacheDir: path.join(site, "node_modules", ".vite"),
         optimizeDeps: { entries: cases, include: hasReact ? ["react", "react-dom/client", "react/jsx-dev-runtime"] : [] },
         // Setting the allowed folders replaces Vite's default, so the catalog's own root is listed beside the project and Drydock.
-        server: { fs: { allow: [root, project.root, DRYDOCK] } },
+        // The fsevents package is left out for the reason the Vite host gives.
+        server: { fs: { allow: [root, project.root, DRYDOCK] }, watch: { useFsEvents: false } },
       },
     },
   }

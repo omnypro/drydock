@@ -27,7 +27,9 @@ export async function catalogViteConfig(project: ResolvedProject, env: ConfigEnv
     // leaves the bundled dependencies alone here as it does in the app.
     cacheDir: path.join(tmpdir(), "drydock", createHash("sha1").update(project.root).digest("hex").slice(0, 12), "node_modules", ".vite"),
     plugins: [drydockPlugin(project)],
-    server: { open: false },
+    // Under Bun the fsevents package takes about ten seconds to close its watchers, and on some Macs it sends nothing.
+    // Without it Vite's watcher uses fs.watch, which closes at once.
+    server: { open: false, watch: { useFsEvents: false } },
   })
   // The cases files import every component a page draws, so scanning them finds the dependencies before the first page
   // asks. Without them Vite finds a dependency while a page loads, re-bundles, and answers the page's requests with 504.
