@@ -58,7 +58,9 @@ export function typecheckCases(project: ResolvedProject, only?: string[]): Cases
       continue
     }
     const roots = new Set(files.map((file) => path.resolve(file)))
-    const program = ts.createProgram({ rootNames: files, options: { ...parsed.options, noEmit: true } })
+    // A composite project must list every file it reads, and the cases files are read alone here.
+    const options = { ...parsed.options, noEmit: true, composite: false, incremental: false, tsBuildInfoFile: undefined }
+    const program = ts.createProgram({ rootNames: files, options })
     for (const diagnostic of ts.getPreEmitDiagnostics(program)) {
       if (!diagnostic.file || !roots.has(path.resolve(diagnostic.file.fileName))) continue
       const { line, character } = ts.getLineAndCharacterOfPosition(diagnostic.file, diagnostic.start ?? 0)

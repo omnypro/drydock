@@ -33,6 +33,17 @@ test("reports a type error in a cases file by its path", () => {
   expect(errors[0]).toContain("error TS2322")
 })
 
+test("reads the cases files of a composite project, which lists them nowhere", () => {
+  fs.rmSync(copy, { recursive: true, force: true })
+  fs.cpSync(root, copy, { recursive: true })
+  const tsconfig = path.join(copy, "tsconfig.json")
+  const config = JSON.parse(fs.readFileSync(tsconfig, "utf8")) as { compilerOptions: Record<string, unknown>; exclude?: string[] }
+  fs.writeFileSync(tsconfig, JSON.stringify({ ...config, compilerOptions: { ...config.compilerOptions, composite: true }, exclude: ["src/**/*.cases.tsx"] }))
+  const result = typecheckCases(projectAt(copy))
+  expect(result.files).toHaveLength(4)
+  expect(result.errors).toEqual([])
+})
+
 test("a project with no cases files has nothing to report", () => {
   expect(typecheckCases(projectAt(root), ["src/NoCases.tsx"])).toEqual({ files: [], errors: [] })
 })
