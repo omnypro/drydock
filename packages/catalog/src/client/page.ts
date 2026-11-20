@@ -21,7 +21,10 @@ function draw(runtime: Runtime, element: unknown, style = "", fallback?: unknown
   Boundary ??= boundary(runtime.React)
   const host = h("div", style ? { style } : {})
   const stage = h("div", { class: "stage" }, host)
-  runtime.createRoot(host).render(runtime.React.createElement(Boundary, fallback === undefined ? null : { fallback: wrapped(runtime, fallback) }, wrapped(runtime, element)))
+  // The inner boundary sits against the case, so a wrapper that holds an error boundary of its own does not take the case's error.
+  // The outer one catches the wrapper itself.
+  const guarded = runtime.React.createElement(Boundary, fallback === undefined ? null : { fallback }, element)
+  runtime.createRoot(host).render(runtime.React.createElement(Boundary, null, wrapped(runtime, guarded)))
   return stage
 }
 

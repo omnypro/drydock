@@ -27,7 +27,7 @@ import {
 import { createRequire } from "node:module"
 import path from "node:path"
 import type { Compiler, ComponentFacts, DefaultValue, Literal, Project, PropFacts, TypeFacts } from "./facts"
-import { isDefaultLibrary, isProjectFile } from "./library"
+import { isDefaultLibrary, isNodeType, isProjectFile } from "./library"
 import { isWrapper } from "./wrappers"
 
 type Found = { identifier: Identifier; fn: ArrowFunction | FunctionExpression | FunctionDeclaration | undefined }
@@ -197,7 +197,12 @@ class AsyncProject implements Project {
       doc: symbolOfFn ? await symbolOfFn.getDocumentationComment(checker) : "",
       defaults,
       props: first && wrap(await checker.getTypeOfSymbolAtLocation(first, identifier)),
-      takesChildren: async (shape) => (await checker.getPropertiesOfType(types.get(shape)!)).some((symbol) => symbol.name === "children"),
+      takesChildren: async (shape) => {
+        const symbol = (await checker.getPropertiesOfType(types.get(shape)!)).find((s) => s.name === "children")
+        if (!symbol) return false
+        const type = wrap(await checker.getTypeOfSymbolAtLocation(symbol, identifier))
+        return !type.isEmpty() && isNodeType(await type.text())
+      },
       declaredProps: async (shape) => {
         const out: PropFacts[] = []
         for (const symbol of await checker.getPropertiesOfType(types.get(shape)!)) {

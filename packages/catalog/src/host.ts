@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import fs from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { loadConfigFromFile, mergeConfig, type ConfigEnv, type UserConfig } from "vite"
@@ -18,6 +19,8 @@ export async function catalogViteConfig(project: ResolvedProject, env: ConfigEnv
   const loaded = await loadConfigFromFile(env, appConfigPath, path.dirname(appConfigPath), undefined, undefined, "runner")
   if (!loaded) throw new Error(`No Vite config found at ${appConfigPath}`)
   const appRoot = path.dirname(appConfigPath)
+  const wrap = project.components?.wrap ? path.resolve(project.root, project.components.wrap) : undefined
+  if (wrap && !fs.existsSync(wrap)) throw new Error(`The project's config names a wrapper that is not there: ${wrap}`)
 
   const merged = mergeConfig(loaded.config, {
     root: loaded.config.root ?? appRoot,
@@ -38,6 +41,8 @@ export async function catalogViteConfig(project: ResolvedProject, env: ConfigEnv
   // The catalog's own page modules import these, and no cases file names them. A project with no component pages has no page modules.
   const pageDeps = project.components ? ["react", "react-dom/client", "react/jsx-dev-runtime"] : []
   const include = [...new Set([...(merged.optimizeDeps?.include ?? []), ...pageDeps])]
-  merged.optimizeDeps = { ...merged.optimizeDeps, entries: [...PAGE_ENTRIES, ...cases], include }
+  // Every page module imports the wrapper, so what it imports is scanned at the start too.
+  const wrapEntry = wrap ? [path.relative(root, wrap).split(path.sep).join("/")] : []
+  merged.optimizeDeps = { ...merged.optimizeDeps, entries: [...PAGE_ENTRIES, ...cases, ...wrapEntry], include }
   return mergeConfig(merged, overrides)
 }

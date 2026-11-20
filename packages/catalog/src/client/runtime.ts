@@ -4,7 +4,7 @@ import type { Cases } from "../cases"
 export type ReactLike = {
   createElement(type: unknown, props?: unknown, ...children: unknown[]): unknown
   isValidElement(value: unknown): boolean
-  Component: new (props: unknown) => { props: { children?: unknown; fallback?: unknown }; state: { error: Error | null }; setState(state: unknown): void }
+  Component: new (props: unknown) => { props: { children?: unknown; fallback?: unknown }; state: unknown; setState(state: unknown): void }
 }
 
 /** What a page module puts on `window.__drydock`: the project's React, the component's module and its cases file. */
@@ -32,20 +32,26 @@ export function wrapped(runtime: Runtime, element: unknown): unknown {
   return runtime.wrap ? runtime.React.createElement(runtime.wrap, null, element) : element
 }
 
+/** What React says when an element that can hold nothing, such as `input`, is given children. */
+const VOID_CHILDREN = /is a void element tag/
+
 /**
  * A boundary that shows a case's error in place of the case, so the rest of the page still draws.
- * Given a `fallback`, it draws that in place of a case that throws, and shows the error only when the fallback throws too.
+ * A `fallback` is drawn in place of a case that threw for one reason only: it was given children it cannot hold. Children
+ * guessed from a type cause that error and no other, so every other error is shown as it is.
  */
 export function boundary(React: ReactLike) {
   return class Boundary extends React.Component {
-    state: { error: Error | null } = { error: null }
-    static getDerivedStateFromError(error: Error) {
-      return { error }
+    state: { thrown: boolean; error: unknown } = { thrown: false, error: null }
+    static getDerivedStateFromError(error: unknown) {
+      return { thrown: true, error }
     }
     render() {
-      if (!this.state.error) return this.props.children
-      if (this.props.fallback !== undefined) return React.createElement(Boundary, null, this.props.fallback)
-      return React.createElement("pre", { className: "error", "data-dd-error": "" }, String(this.state.error.message))
+      if (!this.state.thrown) return this.props.children
+      // A component can throw anything: a router throws a response, and some code throws text.
+      const message = this.state.error instanceof Error ? this.state.error.message : String(this.state.error)
+      if (this.props.fallback !== undefined && VOID_CHILDREN.test(message)) return React.createElement(Boundary, null, this.props.fallback)
+      return React.createElement("pre", { className: "error", "data-dd-error": "" }, message)
     }
   }
 }

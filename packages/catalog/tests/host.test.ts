@@ -53,6 +53,15 @@ test("watches files without the fsevents package, whatever the app's config says
   expect(config.server?.watch).toMatchObject({ useFsEvents: false })
 })
 
+test("fails with the path when the project names a wrapper that is not there", async () => {
+  await expect(
+    catalogViteConfig(
+      { root, appConfig: "apps/web/vite.config.ts", tokens: [], styles: [], rawValues: [], components: { ledger: { source: [], entries: [] }, wrap: "nope/wrap.tsx" } },
+      { command: "serve", mode: "development" },
+    ),
+  ).rejects.toThrow("nope/wrap.tsx")
+})
+
 test("fails with the path when the app config is missing", async () => {
   await expect(
     catalogViteConfig({ root, appConfig: "nope/vite.config.ts", tokens: [], styles: [], rawValues: [] }, { command: "serve", mode: "development" }),

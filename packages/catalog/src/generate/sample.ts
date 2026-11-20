@@ -8,9 +8,11 @@ import type { Props } from "./valid"
  */
 export type AutoSample = { props: Props; unset: string[]; guessedChildren: boolean }
 
-const isNode = (type: string) => /\bReactNode\b/.test(type)
-const isElement = (type: string) => /\b(ReactElement|JSX\.Element)\b/.test(type)
-const isCallback = (type: string) => /^\(.*\)\s*=>/.test(type)
+// Each test reads the whole type as the compiler prints it. A type that only mentions a node (`ReactNode[]`, a record of
+// nodes, a function that returns one) is none of these, and a value made for it would be the wrong kind of thing.
+const isNode = (type: string) => /^(import\("react"\)\.|React\.)?ReactNode$/.test(type)
+const isElement = (type: string) => /^(import\("react"\)\.|React\.)?(ReactElement(<[^[\]]*>)?|JSX\.Element)$/.test(type)
+const isCallback = (type: string) => /^\([^()]*\)\s*=>\s*[^[\]&|]+$/.test(type)
 
 /**
  * A sample made from the component's own types, so a component draws before anyone writes a cases file.
@@ -28,14 +30,16 @@ export function autoSample(shape: ComponentShape, element?: (text: string) => un
     const text = prop.name === "children" ? shape.name : prop.name
     if (prop.kind === "union") props[prop.name] = prop.values[0]
     else if (prop.kind === "boolean") props[prop.name] = false
+    else if (isCallback(prop.type)) props[prop.name] = () => {}
     else if (prop.type === "string" || isNode(prop.type)) props[prop.name] = text
     else if (prop.type === "number") props[prop.name] = 1
-    else if (isCallback(prop.type)) props[prop.name] = () => {}
     else if (isElement(prop.type) && element) props[prop.name] = element(text)
     else unset.push(prop.name)
   }
   // Children that only a native element's props declare are not in `props`, so the shape says whether the component takes any.
-  const guessedChildren = shape.takesChildren && !("children" in props) && !unset.includes("children")
+  // A component that declares its own children has said what they are, and the loop above has dealt with them.
+  const declared = shape.props.some((prop) => prop.name === "children")
+  const guessedChildren = shape.takesChildren && !declared
   if (guessedChildren) props.children = shape.name
   return { props, unset, guessedChildren }
 }

@@ -61,5 +61,8 @@ export function configPathFor(root: string, given?: string): string {
 /** What the ledger reads for a project with component pages. */
 export function ledgerConfig(project: ResolvedProject): LedgerConfig {
   const ledger = project.components!.ledger
-  return { root: project.root, ...ledger, showcases: [...(ledger.showcases ?? []), CASES_FILE] }
+  // The wrapper draws components apart from the app, as a cases file does, so it is no component and no user of one.
+  const wrap = project.components!.wrap
+  const wrapFile = wrap ? [new RegExp(`${path.resolve(project.root, wrap).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`)] : []
+  return { root: project.root, ...ledger, showcases: [...(ledger.showcases ?? []), CASES_FILE, ...wrapFile] }
 }

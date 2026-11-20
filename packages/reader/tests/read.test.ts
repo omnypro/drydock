@@ -42,6 +42,14 @@ describe.each(["bridge", "async"] as const)("%s compiler, children", (compiler) 
   test("says a component takes no children when its props have none", async () => {
     expect((await read("Dot")).takesChildren).toBe(false)
   })
+
+  test("says a component takes no children when its type forbids them", async () => {
+    expect((await read("Bar")).takesChildren).toBe(false)
+  })
+
+  test("says a component takes no children when the child has to be something other than a node", async () => {
+    expect((await read("Only")).takesChildren).toBe(false)
+  })
 })
 
 describe.each(["bridge", "async"] as const)("%s compiler", (compiler) => {

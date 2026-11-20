@@ -51,7 +51,10 @@ if (!group) {
       React = await import(Bun.resolveSync("react", group.cwd))
       createRoot = (await import(Bun.resolveSync("react-dom/client", group.cwd))).createRoot
       axe = (await import("axe-core")).default
-      if (group.wrap) Wrap = ((await import(group.wrap)) as { default?: unknown }).default
+      if (group.wrap) {
+        Wrap = ((await import(group.wrap)) as { default?: unknown }).default
+        if (!Wrap) throw new Error(`The wrapper ${group.wrap} has no default export.`)
+      }
     })
 
     async function draw(Component: unknown, item: CaseItem): Promise<Result> {

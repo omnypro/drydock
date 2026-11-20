@@ -32,5 +32,8 @@ else {
     element = New && Old ? withOld(runtime.React, element, New, Old, handover.props) : undefined
     if (element === undefined) say(`This case does not hold ${handover.part}, so there is nothing to put ${oldId} in place of.`)
   }
-  if (element !== undefined) runtime.createRoot(root).render(runtime.React.createElement(boundary(runtime.React), null, wrapped(runtime, element)))
+  if (element !== undefined) {
+    const Boundary = boundary(runtime.React)
+    runtime.createRoot(root).render(runtime.React.createElement(Boundary, null, wrapped(runtime, runtime.React.createElement(Boundary, null, element))))
+  }
 }

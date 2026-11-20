@@ -14,3 +14,13 @@ export function Panel(props: { children: ReactNode; tone?: "calm" }) {
 export function Dot(props: { tone?: "calm" | "warm" }) {
   return props.tone ?? null
 }
+
+/** Forbids children. */
+export function Bar(props: { tone?: "calm"; children?: never }) {
+  return props.tone ?? null
+}
+
+/** Takes one element as its child, which a line of text is not. */
+export function Only(props: { children: import("react").ReactElement; tone?: "calm" }) {
+  return props.tone ?? null
+}

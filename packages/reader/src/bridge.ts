@@ -2,7 +2,7 @@ import ts from "@typescript/typescript6"
 import fs from "node:fs"
 import path from "node:path"
 import type { Compiler, ComponentFacts, DefaultValue, Literal, Project, PropFacts, TypeFacts } from "./facts"
-import { isDefaultLibrary, isProjectFile } from "./library"
+import { isDefaultLibrary, isNodeType, isProjectFile } from "./library"
 import { isWrapper } from "./wrappers"
 
 type Found = { identifier: ts.Identifier; fn: ts.ArrowFunction | ts.FunctionExpression | ts.FunctionDeclaration | undefined }
@@ -151,7 +151,12 @@ class BridgeProject implements Project {
       doc: symbolOfFn ? ts.displayPartsToString(symbolOfFn.getDocumentationComment(checker)) : "",
       defaults,
       props: first && wrap(checker.getTypeOfSymbolAtLocation(first, identifier)),
-      takesChildren: async (shape) => checker.getPropertiesOfType(types.get(shape)!).some((symbol) => symbol.name === "children"),
+      takesChildren: async (shape) => {
+        const symbol = checker.getPropertiesOfType(types.get(shape)!).find((s) => s.name === "children")
+        if (!symbol) return false
+        const type = wrap(checker.getTypeOfSymbolAtLocation(symbol, identifier))
+        return !type.isEmpty() && isNodeType(await type.text())
+      },
       declaredProps: async (shape) =>
         checker
           .getPropertiesOfType(types.get(shape)!)

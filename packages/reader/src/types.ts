@@ -29,7 +29,7 @@ export type ComponentShape = {
   shapes: Record<string, Literal[]>[]
   defaults: Record<string, DefaultValue>
   /**
-   * Whether the component takes children. `props` lists only what the project declares, so the children that a native
+   * Whether the component takes a node as its children. `props` lists only what the project declares, so the children that a native
    * element's props bring (`ComponentProps<"h3">`) are not in it, and this is how a page knows to give some.
    */
   takesChildren: boolean

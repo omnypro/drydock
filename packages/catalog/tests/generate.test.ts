@@ -198,6 +198,33 @@ describe("autoSample", () => {
     expect(autoSample(shape)).toEqual({ props: {}, unset: ["children"], guessedChildren: false })
   })
 
+  test("gives text only where the whole type is a node, and names a type that merely mentions one", () => {
+    const { props, unset } = autoSample(
+      shapeOf(
+        required("renderItem", "(item: Item) => ReactNode"),
+        required("items", "{ id: string; label: ReactNode }[]"),
+        required("tabs", "Record<string, ReactNode>"),
+        required("steps", "ReactNode[]"),
+        required("icons", "ReactElement[]"),
+        required("handlers", "(() => void)[]"),
+      ),
+      (text) => ({ element: text }),
+    )
+    expect(typeof props.renderItem).toBe("function")
+    expect(Object.keys(props)).toEqual(["renderItem"])
+    expect(unset).toEqual(["items", "tabs", "steps", "icons", "handlers"])
+  })
+
+  test("guesses no children for a component that declares its own, whatever a native element's props allow", () => {
+    const element: PropShape = { ...required("children", "ReactElement"), optional: true }
+    expect(autoSample({ ...shapeOf(element), takesChildren: true })).toEqual({ props: {}, unset: [], guessedChildren: false })
+  })
+
+  test("leaves optional children alone when their type is anything but a node", () => {
+    const fn: PropShape = { ...required("children", "(open: boolean) => ReactNode"), optional: true }
+    expect(autoSample(shapeOf(fn))).toEqual({ props: {}, unset: [], guessedChildren: false })
+  })
+
   test("names a required prop whose type it cannot make a value for, and leaves it out", () => {
     expect(autoSample(shapeOf(required("label", "string"), required("state", "EmotePickerState"), required("config", "{ id: string }")))).toEqual({ props: { label: "label" }, unset: ["state", "config"], guessedChildren: false })
   })

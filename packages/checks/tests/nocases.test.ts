@@ -13,12 +13,13 @@ const project: ResolvedProject = {
   components: { ledger: { source: ["src"], entries: [/^src\/main\.tsx$/] } },
 }
 
-type Page = { sample: string | null; label: string | null; children: string | null; tones: string[]; notes: string[]; entry: boolean; errors: number }
+type Page = { sample: string | null; label: string | null; children: string | null; tones: string[]; notes: string[]; entry: boolean; errors: number; firstError: string | null }
 
 let catalog: RunningCatalog
 let bare: Page
 let needy: Page
 let entry: Page
+let panel: Page
 
 beforeAll(async () => {
   catalog = await startCatalog(project)
@@ -38,11 +39,13 @@ beforeAll(async () => {
         notes: [...document.querySelectorAll("main > p.dim")].map((p) => p.textContent ?? ""),
         entry: Boolean(document.querySelector('#sample .stage [data-part="entry"]')),
         errors: document.querySelectorAll("pre[data-dd-error]").length,
+        firstError: document.querySelector("#sample pre[data-dd-error]")?.textContent ?? null,
       }))
     }
     bare = await read("src/Bare.tsx")
     needy = await read("src/Needy.tsx")
     entry = await read("src/Entry.tsx")
+    panel = await read("src/Panel.tsx")
   })
 }, 120_000)
 
@@ -68,4 +71,8 @@ test("a required prop that only a person can give is named on the page", () => {
 test("a component that takes children only in its type, and throws when given any, is drawn without them", () => {
   expect(entry.entry).toBe(true)
   expect(entry.errors).toBe(0)
+})
+
+test("a component that throws for a reason of its own shows that error, and is not redrawn without children", () => {
+  expect(panel.firstError).toBe("Panel's body needs a provider.")
 })
