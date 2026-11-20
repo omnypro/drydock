@@ -151,6 +151,7 @@ class BridgeProject implements Project {
       doc: symbolOfFn ? ts.displayPartsToString(symbolOfFn.getDocumentationComment(checker)) : "",
       defaults,
       props: first && wrap(checker.getTypeOfSymbolAtLocation(first, identifier)),
+      takesChildren: async (shape) => checker.getPropertiesOfType(types.get(shape)!).some((symbol) => symbol.name === "children"),
       declaredProps: async (shape) =>
         checker
           .getPropertiesOfType(types.get(shape)!)

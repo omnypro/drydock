@@ -1,6 +1,7 @@
 import css from "./catalog.css?inline"
 import { h, type Child } from "./dom"
 import { grid } from "../generate/grid"
+import { autoSample, type AutoSample } from "../generate/sample"
 import { sweep } from "../generate/sweep"
 import { compose, type Props } from "../generate/valid"
 import { allCases, readCase, type CasesInput } from "../generate/cases"
@@ -16,11 +17,11 @@ import type { TokensData } from "../tokens/types"
 let Boundary: ReturnType<typeof boundary> | undefined
 
 /** Draws one element in a host. A case that throws shows its message in its own cell and leaves the rest of the page alone. */
-function draw(runtime: Runtime, element: unknown, style = ""): HTMLElement {
+function draw(runtime: Runtime, element: unknown, style = "", fallback?: unknown): HTMLElement {
   Boundary ??= boundary(runtime.React)
   const host = h("div", style ? { style } : {})
   const stage = h("div", { class: "stage" }, host)
-  runtime.createRoot(host).render(runtime.React.createElement(Boundary, null, element))
+  runtime.createRoot(host).render(runtime.React.createElement(Boundary, fallback === undefined ? null : { fallback }, element))
   return stage
 }
 
@@ -81,12 +82,19 @@ function windowFigure(src: string, title: string, size: readonly [number, number
   return h("figure", { class: "win" }, label, box)
 }
 
-function casesSection(runtime: Runtime, page: ComponentPage, Component: unknown): HTMLElement[] {
+/** The sections that draw the component. `made` is the sample to use when no cases file gives one. */
+function casesSection(runtime: Runtime, page: ComponentPage, Component: unknown, made?: AutoSample): HTMLElement[] {
   const { React } = runtime
   const shape = page.shape!
-  const cases = runtime.cases!
-  const sample = cases.sample as Props
-  const render = (props: Props) => draw(runtime, React.createElement(Component, props))
+  const cases = runtime.cases ?? ({} as NonNullable<Runtime["cases"]>)
+  const sample = (cases.sample ?? made?.props ?? {}) as Props
+  const childless = (props: Props) => {
+    const rest = { ...props }
+    delete rest.children
+    return rest
+  }
+  // Children that were only a guess from the type are dropped for a component that throws when it is given any.
+  const render = (props: Props) => draw(runtime, React.createElement(Component, props), "", made?.guessedChildren ? React.createElement(Component, childless(props)) : undefined)
   const out: HTMLElement[] = []
 
   out.push(h("section", { id: "sample" }, h("h2", {}, "Sample"), render(sample)))
@@ -369,8 +377,13 @@ async function componentPage(root: HTMLElement) {
     children.push(propsSection(page))
     const Component = runtime.Module[page.part] ?? runtime.Module.default
     if (!runtime.cases) children.push(h("p", { class: "m dim" }, "No cases file beside this component."))
-    else if (!Component) children.push(h("p", { class: "m dim" }, `The module does not export ${page.part}.`))
-    else children.push(...casesSection(runtime, page, Component))
+    if (!Component) children.push(h("p", { class: "m dim" }, `The module does not export ${page.part}.`))
+    else {
+      // With no sample from a cases file, the component is drawn with one made from its types.
+      const made = runtime.cases?.sample === undefined ? autoSample(page.shape, (text) => runtime.React.createElement("span", null, text)) : undefined
+      if (made?.unset.length) children.push(h("p", { class: "m dim" }, `no value for: ${made.unset.join(", ")}`))
+      children.push(...casesSection(runtime, page, Component, made))
+    }
   }
   root.replaceChildren(h("main", { class: "dd page" }, ...children))
 }

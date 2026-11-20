@@ -26,6 +26,24 @@ afterAll(async () => {
 const SCALES = ["tight", "normal", "wide"]
 const TONES_OF_CHIP = ["calm", "warm", "bold"]
 
+describe.each(["bridge", "async"] as const)("%s compiler, children", (compiler) => {
+  const read = async (name: string) => (await readers[compiler].read(path.join(fixtures, "children.ts"), name))!
+
+  test("says a component takes children when only the native element's props declare them", async () => {
+    const title = await read("Title")
+    expect(title.takesChildren).toBe(true)
+    expect(title.props.map((p) => p.name)).toEqual(["size"])
+  })
+
+  test("says a component takes children when it declares them itself", async () => {
+    expect((await read("Panel")).takesChildren).toBe(true)
+  })
+
+  test("says a component takes no children when its props have none", async () => {
+    expect((await read("Dot")).takesChildren).toBe(false)
+  })
+})
+
 describe.each(["bridge", "async"] as const)("%s compiler", (compiler) => {
   const shape = () => shapes[compiler]!
   const prop = (name: string) => shape().props.find((p) => p.name === name)

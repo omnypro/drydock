@@ -59,12 +59,14 @@ function relativeTo(from: string, target: string): string {
 export async function readComponent(project: Project, file: string, name: string, compiler: string): Promise<ComponentShape | undefined> {
   const facts: ComponentFacts | undefined = await project.component(file, name)
   if (!facts) return undefined
-  if (!facts.props) return { name, compiler, doc: facts.doc, props: [], shapes: [{}], defaults: facts.defaults }
+  if (!facts.props) return { name, compiler, doc: facts.doc, props: [], shapes: [{}], defaults: facts.defaults, takesChildren: false }
 
   const members: { seen: Seen[]; lead: Place | undefined }[] = []
   const looseIn = new Set<string>()
   const nullable = new Set<string>()
+  let takesChildren = false
   for (const member of await facts.props.parts()) {
+    takesChildren ||= await facts.takesChildren(member)
     const seen: Seen[] = []
     let lead: Place | undefined
     for (const prop of await facts.declaredProps(member)) {
@@ -140,5 +142,5 @@ export async function readComponent(project: Project, file: string, name: string
     return shape
   })
 
-  return { name, compiler, doc: facts.doc, props: ordered, shapes, defaults: facts.defaults }
+  return { name, compiler, doc: facts.doc, props: ordered, shapes, defaults: facts.defaults, takesChildren }
 }

@@ -4,7 +4,7 @@ import type { Cases } from "../cases"
 export type ReactLike = {
   createElement(type: unknown, props?: unknown, ...children: unknown[]): unknown
   isValidElement(value: unknown): boolean
-  Component: new (props: unknown) => { props: { children?: unknown }; state: { error: Error | null }; setState(state: unknown): void }
+  Component: new (props: unknown) => { props: { children?: unknown; fallback?: unknown }; state: { error: Error | null }; setState(state: unknown): void }
 }
 
 /** What a page module puts on `window.__drydock`: the project's React, the component's module and its cases file. */
@@ -25,15 +25,20 @@ declare global {
   }
 }
 
-/** A boundary that shows a case's error in place of the case, so the rest of the page still draws. */
+/**
+ * A boundary that shows a case's error in place of the case, so the rest of the page still draws.
+ * Given a `fallback`, it draws that in place of a case that throws, and shows the error only when the fallback throws too.
+ */
 export function boundary(React: ReactLike) {
-  return class extends React.Component {
+  return class Boundary extends React.Component {
     state: { error: Error | null } = { error: null }
     static getDerivedStateFromError(error: Error) {
       return { error }
     }
     render() {
-      return this.state.error ? React.createElement("pre", { className: "error", "data-dd-error": "" }, String(this.state.error.message)) : this.props.children
+      if (!this.state.error) return this.props.children
+      if (this.props.fallback !== undefined) return React.createElement(Boundary, null, this.props.fallback)
+      return React.createElement("pre", { className: "error", "data-dd-error": "" }, String(this.state.error.message))
     }
   }
 }

@@ -197,6 +197,7 @@ class AsyncProject implements Project {
       doc: symbolOfFn ? await symbolOfFn.getDocumentationComment(checker) : "",
       defaults,
       props: first && wrap(await checker.getTypeOfSymbolAtLocation(first, identifier)),
+      takesChildren: async (shape) => (await checker.getPropertiesOfType(types.get(shape)!)).some((symbol) => symbol.name === "children"),
       declaredProps: async (shape) => {
         const out: PropFacts[] = []
         for (const symbol of await checker.getPropertiesOfType(types.get(shape)!)) {

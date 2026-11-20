@@ -36,6 +36,8 @@ export interface ComponentFacts {
   props: TypeFacts | undefined
   /** The props of one member of the props type that a file of the project declares. Props that an installed package declares are left out. */
   declaredProps(shape: TypeFacts): Promise<PropFacts[]>
+  /** Whether this member of the props type has a `children` prop, wherever it is declared: a native element's props count. */
+  takesChildren(shape: TypeFacts): Promise<boolean>
 }
 
 export interface TypeFacts {

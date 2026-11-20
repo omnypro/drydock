@@ -9,7 +9,7 @@ import { compareProps } from "../src/components/handover"
 import type { ComponentPage, Handover, MarksView } from "../src/components/service"
 
 const prop = (name: string, type: string): PropShape => ({ name, kind: "data", optional: true, type, doc: `${name} doc`, values: [], ordered: true })
-const shape = (...props: PropShape[]): ComponentShape => ({ name: "X", compiler: "test", doc: "", props, shapes: [{}], defaults: {} })
+const shape = (...props: PropShape[]): ComponentShape => ({ name: "X", compiler: "test", doc: "", props, shapes: [{}], defaults: {}, takesChildren: false })
 
 describe("compareProps", () => {
   test("marks each prop kept, new or dropped, with the old type when it changed", () => {

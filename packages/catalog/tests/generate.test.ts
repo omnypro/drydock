@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 import type { ComponentShape, PropShape } from "@drydock/reader"
 import { grid, MAX_CELLS } from "../src/generate/grid"
 import { allCases } from "../src/generate/cases"
+import { autoSample } from "../src/generate/sample"
 import { sweep } from "../src/generate/sweep"
 import { isValid, withValue } from "../src/generate/valid"
 
@@ -16,6 +17,7 @@ const chip: ComponentShape = {
   compiler: "test",
   doc: "",
   defaults: {},
+  takesChildren: false,
   props: [
     union("shape", ["soft", "line", "bare"]),
     union("tone", ["calm", "warm", "bold"]),
@@ -151,5 +153,52 @@ describe("allCases", () => {
       { section: "more", label: "wide", element: "page", window: { name: "beside", size: [1280, 800] } },
       { section: "more", label: "lost", element: "other", window: { name: "under" } },
     ])
+  })
+})
+
+describe("autoSample", () => {
+  const required = (name: string, type: string): PropShape => ({ name, kind: "data", optional: false, type, doc: "", values: [], ordered: true })
+  const shapeOf = (...props: PropShape[]): ComponentShape => ({ name: "Badge", compiler: "test", doc: "", defaults: {}, takesChildren: false, props, shapes: [{}] })
+
+  test("gives a component with no required props an empty sample", () => {
+    expect(autoSample(shapeOf(union("tone", ["calm", "warm"]), data("title", true)))).toEqual({ props: {}, unset: [], guessedChildren: false })
+  })
+
+  test("fills a required choice with its first value and a required switch with false", () => {
+    const tone: PropShape = { ...union("tone", ["calm", "warm"]), optional: false }
+    const on: PropShape = { name: "on", kind: "boolean", optional: false, type: "boolean", doc: "", values: [false, true], ordered: true }
+    expect(autoSample(shapeOf(tone, on)).props).toEqual({ tone: "calm", on: false })
+  })
+
+  test("fills required text with the prop's name, a number with 1, and children with the component's name", () => {
+    const { props, unset } = autoSample(shapeOf(required("label", "string"), required("count", "number"), required("children", 'import("react").ReactNode'), required("aside", "ReactNode")))
+    expect(props).toEqual({ label: "label", count: 1, children: "Badge", aside: "aside" })
+    expect(unset).toEqual([])
+  })
+
+  test("gives children a value even when they are optional, since a component with no content draws nothing", () => {
+    const children: PropShape = { ...required("children", 'import("react").ReactNode'), optional: true }
+    const title: PropShape = { ...required("title", 'import("react").ReactNode'), optional: true }
+    expect(autoSample(shapeOf(children, title)).props).toEqual({ children: "Badge" })
+  })
+
+  test("gives children to a component that takes them through a native element's props, where no prop of its own is named children", () => {
+    expect(autoSample({ ...shapeOf(union("size", ["sm", "lg"])), takesChildren: true })).toEqual({ props: { children: "Badge" }, unset: [], guessedChildren: true })
+  })
+
+  test("fills a required callback with a function that does nothing", () => {
+    const { props } = autoSample(shapeOf(required("onSave", "() => void"), required("onPick", "(id: string) => Promise<void>")))
+    expect(typeof props.onSave).toBe("function")
+    expect((props.onPick as () => unknown)()).toBeUndefined()
+  })
+
+  test("asks the page for an element where the type needs one, and names the prop when the page gives none", () => {
+    const shape = shapeOf(required("children", 'import("react").ReactElement<unknown, string>'))
+    expect(autoSample(shape, (text) => ({ element: text })).props).toEqual({ children: { element: "Badge" } })
+    expect(autoSample(shape)).toEqual({ props: {}, unset: ["children"], guessedChildren: false })
+  })
+
+  test("names a required prop whose type it cannot make a value for, and leaves it out", () => {
+    expect(autoSample(shapeOf(required("label", "string"), required("state", "EmotePickerState"), required("config", "{ id: string }")))).toEqual({ props: { label: "label" }, unset: ["state", "config"], guessedChildren: false })
   })
 })
