@@ -1,22 +1,16 @@
-import fs from "node:fs"
 import { createRequire } from "node:module"
 import path from "node:path"
 import { deriveLedger } from "@drydock/ledger"
 import { casesFileFor, ledgerConfig, type ResolvedProject } from "@drydock/catalog"
+import { nearest } from "./plan"
 
-/** The cases files that were read, from the project root, and the type errors found in them. */
+/** The cases files that were read, from the project root, and the errors found: in them, in their tsconfig, or in its options. */
 export type CasesTypecheck = { files: string[]; errors: string[] }
 
 type Compiler = typeof import("typescript")
 
-function nearestTsconfig(from: string, root: string): string | undefined {
-  for (let dir = from; dir.startsWith(root); dir = path.dirname(dir)) {
-    const file = path.join(dir, "tsconfig.json")
-    if (fs.existsSync(file)) return file
-    if (dir === root) break
-  }
-  return undefined
-}
+/** TypeScript's code for "No inputs were found in config file". */
+const NO_INPUTS = 18003
 
 /** The project's own TypeScript, so its files are judged by the version the project builds with. */
 function compilerFor(folder: string): Compiler {
@@ -45,28 +39,32 @@ export function typecheckCases(project: ResolvedProject, only?: string[]): Cases
     const file = path.join(project.root, component.id)
     const casesFile = casesFileFor(file)
     if (component.kind !== "react" || !casesFile) continue
-    const tsconfig = project.components.tsconfig ? path.resolve(project.root, project.components.tsconfig) : nearestTsconfig(path.dirname(file), project.root)
+    const tsconfig = project.components.tsconfig ? path.resolve(project.root, project.components.tsconfig) : nearest(path.dirname(file), "tsconfig.json", project.root)
     if (!tsconfig) errors.push(`${from(casesFile)}: no tsconfig.json above it`)
-    groups.set(tsconfig ?? "", [...(groups.get(tsconfig ?? "") ?? []), casesFile])
+    else groups.set(tsconfig, [...(groups.get(tsconfig) ?? []), casesFile])
   }
   for (const [tsconfig, files] of groups) {
-    if (!tsconfig) continue
     const ts = compilerFor(path.dirname(tsconfig))
-    const parsed = ts.getParsedCommandLineOfConfigFile(tsconfig, {}, { ...ts.sys, onUnRecoverableConfigFileDiagnostic: () => {} })
+    const say = (diagnostic: import("typescript").Diagnostic) => {
+      const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n").split("\n")[0]
+      if (!diagnostic.file) return `${from(tsconfig)}: error TS${diagnostic.code}: ${message}`
+      const { line, character } = ts.getLineAndCharacterOfPosition(diagnostic.file, diagnostic.start ?? 0)
+      return `${from(diagnostic.file.fileName)}(${line + 1},${character + 1}): error TS${diagnostic.code}: ${message}`
+    }
+    let unreadable: import("typescript").Diagnostic | undefined
+    const parsed = ts.getParsedCommandLineOfConfigFile(tsconfig, {}, { ...ts.sys, onUnRecoverableConfigFileDiagnostic: (diagnostic) => (unreadable = diagnostic) })
     if (!parsed) {
-      errors.push(`${from(tsconfig)}: could not be read`)
+      errors.push(unreadable ? say(unreadable) : `${from(tsconfig)}: could not be read`)
       continue
     }
+    // A config that names no files of its own is no fault here: the cases files are the roots.
+    errors.push(...parsed.errors.filter((diagnostic) => diagnostic.code !== NO_INPUTS).map(say))
     const roots = new Set(files.map((file) => path.resolve(file)))
-    // A composite project must list every file it reads, and the cases files are read alone here.
-    const options = { ...parsed.options, noEmit: true, composite: false, incremental: false, tsBuildInfoFile: undefined }
+    // A composite project must list every file it reads and must emit declarations. The cases files are read alone here, and nothing is emitted.
+    const options = { ...parsed.options, noEmit: true, composite: false, incremental: false, tsBuildInfoFile: undefined, declaration: false, declarationMap: false, emitDeclarationOnly: false }
     const program = ts.createProgram({ rootNames: files, options })
-    for (const diagnostic of ts.getPreEmitDiagnostics(program)) {
-      if (!diagnostic.file || !roots.has(path.resolve(diagnostic.file.fileName))) continue
-      const { line, character } = ts.getLineAndCharacterOfPosition(diagnostic.file, diagnostic.start ?? 0)
-      const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n").split("\n")[0]
-      errors.push(`${from(diagnostic.file.fileName)}(${line + 1},${character + 1}): error TS${diagnostic.code}: ${message}`)
-    }
+    // An error with no file is one in the options, which leaves every file misread. An error in another file is that file's own to report.
+    for (const diagnostic of ts.getPreEmitDiagnostics(program)) if (!diagnostic.file || roots.has(path.resolve(diagnostic.file.fileName))) errors.push(say(diagnostic))
   }
   return { files: [...groups.values()].flat().map(from).sort(), errors: errors.sort() }
 }

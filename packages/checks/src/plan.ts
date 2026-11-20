@@ -23,7 +23,8 @@ export type Plan = {
   unplaced: { id: string; reason: string }[]
 }
 
-function nearest(from: string, name: string, root: string): string | undefined {
+/** The nearest file of this name at or above a folder, without leaving the project. */
+export function nearest(from: string, name: string, root: string): string | undefined {
   for (let dir = from; dir.startsWith(root); dir = path.dirname(dir)) {
     if (fs.existsSync(path.join(dir, name))) return path.join(dir, name)
     if (dir === root) break

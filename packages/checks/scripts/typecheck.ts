@@ -10,8 +10,8 @@ if (!rootArg) {
   process.exit(2)
 }
 const root = path.resolve(rootArg)
-const config = (await import(configPathFor(root, configArg))).default as ProjectConfig
 try {
+  const config = (await import(configPathFor(root, configArg))).default as ProjectConfig
   const { files, errors } = typecheckCases({ ...config, root })
   console.log(`${files.length} cases files`)
   for (const error of errors) console.error(error)

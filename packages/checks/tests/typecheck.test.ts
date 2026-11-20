@@ -44,6 +44,32 @@ test("reads the cases files of a composite project, which lists them nowhere", (
   expect(result.errors).toEqual([])
 })
 
-test("a project with no cases files has nothing to report", () => {
+test("reports a tsconfig that cannot be read in full", () => {
+  fs.rmSync(copy, { recursive: true, force: true })
+  fs.cpSync(root, copy, { recursive: true })
+  const tsconfig = path.join(copy, "tsconfig.json")
+  const config = JSON.parse(fs.readFileSync(tsconfig, "utf8")) as Record<string, unknown>
+  fs.writeFileSync(tsconfig, JSON.stringify({ ...config, extends: "./missing.json" }))
+  const { errors } = typecheckCases(projectAt(copy))
+  expect(errors.some((error) => error.startsWith("tsconfig.json") && error.includes("error TS"))).toBe(true)
+})
+
+test("a cases file with no tsconfig above it is an error, and is not counted as read", () => {
+  const bare = typecheckCases({ ...projectAt(path.join(root, "src")), components: { ledger: { source: ["."], entries: [/^main\.tsx$/] } } })
+  expect(bare.files).toEqual([])
+  expect(bare.errors).toEqual(["Fragile.cases.tsx", "Good.cases.tsx", "Ringless.cases.tsx", "Unlabeled.cases.tsx"].map((file) => `${file}: no tsconfig.json above it`))
+})
+
+test("the script exits with 2 when the project has no config", () => {
+  const empty = fs.mkdtempSync(path.join(import.meta.dir, "fixtures", "empty-"))
+  try {
+    const run = Bun.spawnSync(["bun", path.join(import.meta.dir, "../scripts/typecheck.ts"), empty], { stdout: "pipe", stderr: "pipe" })
+    expect(run.exitCode).toBe(2)
+  } finally {
+    fs.rmSync(empty, { recursive: true, force: true })
+  }
+})
+
+test("a component with no cases file has nothing to report", () => {
   expect(typecheckCases(projectAt(root), ["src/NoCases.tsx"])).toEqual({ files: [], errors: [] })
 })
