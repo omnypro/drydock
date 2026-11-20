@@ -171,7 +171,7 @@ function inlineConfig(project: ResolvedProject, service: ComponentService) {
       integrations: [integration],
       vite: {
         // Vite's dependency cache is shared by the site's runs, so a second start is warm. Vite renames new bundles into place.
-        cacheDir: path.join(site, "vite"),
+        cacheDir: path.join(site, "node_modules", ".vite"),
         optimizeDeps: { entries: cases, include: hasReact ? ["react", "react-dom/client", "react/jsx-dev-runtime"] : [] },
         // Setting the allowed folders replaces Vite's default, so the catalog's own root is listed beside the project and Drydock.
         server: { fs: { allow: [root, project.root, DRYDOCK] } },

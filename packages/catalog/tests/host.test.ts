@@ -36,6 +36,15 @@ test("keeps the app's own settings and replaces optimizeDeps.entries after the m
   expect(config.root).toBe(path.join(root, "apps/web"))
 })
 
+test("keeps Vite's dependency cache in a node_modules folder under the temp folder, where an app's plugins leave files alone", async () => {
+  const config = await catalogViteConfig(
+    { root, appConfig: "apps/web/vite.config.ts", tokens: [], styles: [], rawValues: [] },
+    { command: "serve", mode: "development" },
+  )
+  expect(config.cacheDir).toStartWith(os.tmpdir())
+  expect(config.cacheDir).toMatch(/[\\/]node_modules[\\/]/)
+})
+
 test("fails with the path when the app config is missing", async () => {
   await expect(
     catalogViteConfig({ root, appConfig: "nope/vite.config.ts", tokens: [], styles: [], rawValues: [] }, { command: "serve", mode: "development" }),

@@ -23,7 +23,9 @@ export async function catalogViteConfig(project: ResolvedProject, env: ConfigEnv
     root: loaded.config.root ?? appRoot,
     configFile: false,
     // Vite's dependency cache goes under the temp folder, so serving the catalog writes nothing into the project and does not share the app's cache.
-    cacheDir: path.join(tmpdir(), "drydock", createHash("sha1").update(project.root).digest("hex").slice(0, 12)),
+    // The folder is named as the app's own cache is, `node_modules/.vite`: a plugin that leaves `node_modules` alone, as Babel plugins do, then
+    // leaves the bundled dependencies alone here as it does in the app.
+    cacheDir: path.join(tmpdir(), "drydock", createHash("sha1").update(project.root).digest("hex").slice(0, 12), "node_modules", ".vite"),
     plugins: [drydockPlugin(project)],
     server: { open: false },
   })
