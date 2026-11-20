@@ -151,7 +151,8 @@ export function drydockPlugin(project: ResolvedProject, components: ComponentSer
         casesImport(absolute),
         ...importAll(olds, "Old"),
         ...importAll(news, "New"),
-        `window.__drydock = { React, createRoot, Module, cases: Cases.default, old: ${table(olds, "Old")}, news: ${table(news, "New")} }`,
+        project.components?.wrap ? `import Wrap from ${JSON.stringify(`/@fs${path.resolve(project.root, project.components.wrap)}`)}` : `const Wrap = undefined`,
+        `window.__drydock = { React, createRoot, Module, cases: Cases.default, wrap: Wrap, old: ${table(olds, "Old")}, news: ${table(news, "New")} }`,
         "",
       ].join("\n")
     },

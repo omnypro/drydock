@@ -15,7 +15,7 @@ export type CheckItem = {
 }
 
 /** The components that share one test setup: the folder of the nearest `bunfig.toml`, where `bun test` runs. */
-export type CheckGroup = { cwd: string; items: CheckItem[] }
+export type CheckGroup = { cwd: string; items: CheckItem[]; /** The project's wrapper module, as an absolute path, when its config names one. */ wrap?: string }
 
 export type Plan = {
   groups: CheckGroup[]
@@ -52,5 +52,6 @@ export function planChecks(project: ResolvedProject, only?: string[]): Plan {
       groups.set(cwd, [...(groups.get(cwd) ?? []), { id: component.id, file, casesFile, part: component.parts[0]!, tsconfig }])
     }
   }
-  return { groups: [...groups].map(([cwd, items]) => ({ cwd, items })), unplaced }
+  const wrap = project.components.wrap ? { wrap: path.resolve(project.root, project.components.wrap) } : {}
+  return { groups: [...groups].map(([cwd, items]) => ({ cwd, items, ...wrap })), unplaced }
 }

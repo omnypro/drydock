@@ -41,6 +41,8 @@ if (!group) {
     let React: typeof import("react")
     let createRoot: typeof import("react-dom/client").createRoot
     let axe: typeof import("axe-core")
+    /** The project's wrapper, when its config names one. Every case is drawn inside it, as the catalog's pages draw it. */
+    let Wrap: unknown
 
     beforeAll(async () => {
       if (typeof document === "undefined") throw new Error(`The test setup in ${group.cwd} has no DOM. Its bunfig.toml needs a preload that registers happy-dom.`)
@@ -49,6 +51,7 @@ if (!group) {
       React = await import(Bun.resolveSync("react", group.cwd))
       createRoot = (await import(Bun.resolveSync("react-dom/client", group.cwd))).createRoot
       axe = (await import("axe-core")).default
+      if (group.wrap) Wrap = ((await import(group.wrap)) as { default?: unknown }).default
     })
 
     async function draw(Component: unknown, item: CaseItem): Promise<Result> {
@@ -57,7 +60,8 @@ if (!group) {
       document.body.append(host)
       const errors: unknown[] = []
       const root = createRoot(host, { onUncaughtError: (error) => errors.push(error), onCaughtError: (error) => errors.push(error) })
-      const element = item.element ?? React.createElement(Component as never, item.props as never)
+      const bare = item.element ?? React.createElement(Component as never, item.props as never)
+      const element = Wrap ? React.createElement(Wrap as never, null, bare as never) : bare
       try {
         await React.act(async () => root.render(element as never))
       } catch (error) {

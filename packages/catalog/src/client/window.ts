@@ -1,6 +1,6 @@
 import { readCase } from "../generate/cases"
 import type { Handover } from "../components/service"
-import { boundary } from "./runtime"
+import { boundary, wrapped } from "./runtime"
 import { withOld } from "./swap"
 
 // One page case in a document of its own. The component page frames this document at the window's size, so the page's
@@ -32,5 +32,5 @@ else {
     element = New && Old ? withOld(runtime.React, element, New, Old, handover.props) : undefined
     if (element === undefined) say(`This case does not hold ${handover.part}, so there is nothing to put ${oldId} in place of.`)
   }
-  if (element !== undefined) runtime.createRoot(root).render(runtime.React.createElement(boundary(runtime.React), null, element))
+  if (element !== undefined) runtime.createRoot(root).render(runtime.React.createElement(boundary(runtime.React), null, wrapped(runtime, element)))
 }

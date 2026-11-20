@@ -7,7 +7,7 @@ import { compose, type Props } from "../generate/valid"
 import { allCases, readCase, type CasesInput } from "../generate/cases"
 import type { ComponentIndex, ComponentPage, Handover, MarksView } from "../components/service"
 import { COMPONENTS, TOKENS, componentsCount, links, tokensCount, topNav } from "./nav"
-import { boundary, type Runtime } from "./runtime"
+import { boundary, wrapped, type Runtime } from "./runtime"
 import { forOld, holds, withOld } from "./swap"
 import type { MarkState } from "@drydock/marks"
 import type { PropShape } from "@drydock/reader"
@@ -21,7 +21,7 @@ function draw(runtime: Runtime, element: unknown, style = "", fallback?: unknown
   Boundary ??= boundary(runtime.React)
   const host = h("div", style ? { style } : {})
   const stage = h("div", { class: "stage" }, host)
-  runtime.createRoot(host).render(runtime.React.createElement(Boundary, fallback === undefined ? null : { fallback }, element))
+  runtime.createRoot(host).render(runtime.React.createElement(Boundary, fallback === undefined ? null : { fallback: wrapped(runtime, fallback) }, wrapped(runtime, element)))
   return stage
 }
 

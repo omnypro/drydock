@@ -13,6 +13,8 @@ export type Runtime = {
   createRoot(host: Element): { render(element: unknown): void }
   Module: Record<string, unknown>
   cases?: Cases<never> & Record<string, unknown>
+  /** The project's wrapper, when its config names one: a component that every case is drawn inside. */
+  wrap?: unknown
   /** The module of each old component that a marked new one replaces, by its file. */
   old?: Record<string, Record<string, unknown>>
   /** The module of each new component that a cases file draws and a mark says replaces another, by its file. */
@@ -23,6 +25,11 @@ declare global {
   interface Window {
     __drydock?: Runtime
   }
+}
+
+/** The element inside the project's wrapper, or the element alone when the project has none. */
+export function wrapped(runtime: Runtime, element: unknown): unknown {
+  return runtime.wrap ? runtime.React.createElement(runtime.wrap, null, element) : element
 }
 
 /**

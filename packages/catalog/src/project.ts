@@ -20,6 +20,11 @@ export type ProjectConfig = {
     tsconfig?: string
     /** The marks file, from the project root. Its default export is a list of `parked` and `replaces` marks. */
     marks?: string
+    /**
+     * A module, from the project root, whose default export is a component that takes children. Every case is drawn
+     * inside it, so a component finds what the app puts around it: a motion setting, a tooltip provider, a router.
+     */
+    wrap?: string
   }
 }
 
