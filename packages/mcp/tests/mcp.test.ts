@@ -135,7 +135,7 @@ describe("clearing a mark", () => {
 
 test("serves over stdio with nothing but the protocol on stdout, and its process ends when the client goes", async () => {
   write(
-    "drydock.config.ts",
+    "drydock/config.ts",
     `export default { appConfig: "app/vite.config.ts", tokens: ["app/src/tokens.css"], styles: [], rawValues: [], components: { ledger: { source: ["app/src"], entries: [/^app\\/src\\/main\\.tsx$/] }, marks: "marks.ts" } }\n`,
   )
   const transport = new StdioClientTransport({ command: "bun", args: [path.join(import.meta.dir, "../src/main.ts"), root], stderr: "pipe" })
